@@ -8,10 +8,11 @@ The product surface is a dark, mission-control choropleth of communities (census
 
 ## Geographic scope
 
-- **MVP territory:** Mississauga, Brampton, and Hamilton — approximately 400 census tracts.
-- **Anchoring narrative:** Hamilton's Code Red neighbourhoods (the canonical Canadian community-vulnerability story) are inside the demo. Mississauga and Brampton provide affluent-vs-burdened contrast within a single utility's footprint.
-- **Sponsor alignment:** all three cities sit inside or overlap Alectra Utilities service territory; data sources align with the Alectra + Esri Canada sponsor stack.
-- **Post-MVP expansion path:** the remaining 14 Alectra communities (Vaughan, Markham, Guelph, Barrie, St. Catharines, etc.), then any Canadian municipality with comparable open-data coverage.
+- **MVP demo city: Brampton** — 122 census tracts, 100% real data coverage (census, CISV/CISR, weather, facilities, neighbourhood names).
+- **Alectra territory covered in pipeline:** 569 CTs across Brampton + Mississauga + Hamilton — all scored and in `master_cts.geojson`, but demo focuses on Brampton where data is fully real.
+- **Why Brampton:** Best open-data coverage — Brampton's own ESRI ArcGIS FeatureServer provides all CT-level census layers. Mississauga blocks programmatic access; Hamilton has partial coverage.
+- **Sponsor alignment:** Brampton is inside Alectra Utilities service territory; data sources align with the Alectra + Esri Canada sponsor stack.
+- **Post-MVP expansion path:** Mississauga and Hamilton once census data gaps are resolved, then the remaining 14 Alectra communities.
 
 ## Product Axiom
 

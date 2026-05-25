@@ -2,7 +2,8 @@
 
 Authoritative record of every data source ingested into Threshold, with exact endpoints, status, and how each was fetched.
 
-**Scope:** Brampton (MVP demo city — 122 Census Tracts in Alectra territory).
+**Scope:** Brampton (MVP demo city — 122 Census Tracts in Alectra territory).  
+**All fetching lives in:** `pipeline/EDA.ipynb` — no external scripts.  
 **Status legend:** `planned → fetched → normalized → joined → live-in-app`
 
 ---
@@ -12,39 +13,38 @@ Authoritative record of every data source ingested into Threshold, with exact en
 ### A1 · Census Tract Boundaries (StatsCan 2021)
 
 - **Slug:** `statcan-census-tracts-2021`
-- **Endpoint:** StatsCan 2021 Census — Digital Boundary File  
-  `https://www12.statcan.gc.ca/census-recensement/2021/geo/sip-pis/boundary-limites/`
+- **Endpoint:** `https://www12.statcan.gc.ca/census-recensement/2021/geo/sip-pis/boundary-limites/files-fichiers/lct_000b21a_e.zip`
 - **Format:** Shapefile → converted to GeoJSON via `geopandas`
-- **Pipeline script:** Loaded inside `pipeline/EDA.ipynb` cell `a1-fetch-boundaries`
-- **Coverage:** 569 CTs — Brampton + Mississauga (CMA 535) + Hamilton (CMA 537), Alectra service area
-- **Output file:** `pipeline/data/master_cts.geojson` (569 CTs, geometry + CTUID + DGUID)
+- **Notebook cell:** `a1-fetch-ct-boundaries`
+- **Coverage:** 1,432 CTs — Brampton + Mississauga (CMA 535) + Hamilton (CMA 537), Alectra service area
+- **Output file:** `pipeline/data/master_cts.geojson` (569 CTs after Alectra clip)
 - **License:** Statistics Canada Open License
 - **Status:** ✅ live-in-app
-- **Notes:** Filtered to `PRUID = 35` (Ontario), CMAs 535 and 537. CTUID is the join key for every other source.
+- **Notes:** Filtered to `PRUID = 35` (Ontario), CMAs 535 and 537. CTUID is the join key for every other source. Cached to `data/ct_boundaries/`.
 
 ---
 
 ### A2 · 2021 Census Demographics by CT — Brampton (City ESRI ArcGIS)
 
 - **Slug:** `brampton-esri-census2021`
-- **Endpoint:** City of Brampton ArcGIS FeatureServer (Census 2021 by Census Tract)  
-  `https://services3.arcgis.com/rl7ACuZkiFsmDA2g/ArcGIS/rest/services/Census_2021/FeatureServer`
+- **Endpoint:** `https://services3.arcgis.com/rl7ACuZkiFsmDA2g/ArcGIS/rest/services/Census_2021/FeatureServer`
   - Layer 1 — Population: `CTUID, POPULATION_2021, TOTAL_PRIVATE_DWELLINGS`
   - Layer 6 — Housing tenure + age: `CTUID, RENTER, TOTAL_PRIV_HH_BY_TENURE_25, FROM1960_OR_BEFORE, FROM1961_TO_1980, TOTAL_PRIV_DWELL_PERIOD_25`
   - Layer 8 — Income: `CTUID, TOTAL_MED_HH_INC_2020`
   - Layer 11 — Low income: `CTUID, TOTAL_LOWINC_2020_LIM, TOTAL_PCT_LOWINC_2020_LIM`
 - **Format:** JSON via ArcGIS REST `?f=json&where=1=1&outFields=...`
-- **Pipeline script:** `pipeline/build_map.py` (inline fetch), also `pipeline/EDA.ipynb`
+- **Notebook cell:** `24bc1826`
 - **Coverage:** 122 Brampton Census Tracts (complete city coverage)
 - **Columns produced:**
   - `population` — from `POPULATION_2021`
-  - `median_income` — from `TOTAL_MED_HH_INC_2020` (2020 dollars)
+  - `median_income` — from `TOTAL_MED_HH_INC_2020` (2020 dollars, rounded to nearest $2,500 by StatsCan)
   - `pct_renters` — computed: `RENTER / TOTAL_PRIV_HH_BY_TENURE_25`
   - `pct_pre1980` — computed: `(FROM1960_OR_BEFORE + FROM1961_TO_1980) / TOTAL_PRIV_DWELL_PERIOD_25`
+  - `pct_low_income` — from `TOTAL_PCT_LOWINC_2020_LIM / 100`
 - **Output file:** `pipeline/data/brampton_full.geojson`
 - **License:** City of Brampton Open Data License
 - **Status:** ✅ live-in-app
-- **Notes:** All 57 CT-level census layers are available at this FeatureServer. We use 4. Data is 2021 Canadian Census of Population.
+- **Verified:** Population for CT 5350528.20 = 5,726 — exact match to live ESRI on 2026-05-25.
 
 ---
 
@@ -52,10 +52,11 @@ Authoritative record of every data source ingested into Threshold, with exact en
 
 - **Slug:** `statcan-cisv-2021`
 - **Endpoint:** `https://www150.statcan.gc.ca/pub/45-20-0001/2025001/csv/cisv-eng.zip`
-- **Format:** CSV zip — DA-level index scores
-- **Pipeline script:** `pipeline/build_cisr_cisv.py`
+- **Format:** CSV zip — DA-level index scores (`cisv_scores_quintiles-eng.csv`)
+- **Notebook cell:** `a3-fetch-cimd`
 - **Coverage:** National — filtered to Ontario (PRUID=35), CMAs 535+537
 - **DA→CT crosswalk:** `2021_92-151_X.csv` from `https://www12.statcan.gc.ca/census-recensement/2021/geo/aip-pia/attribute-attribs/files-fichiers/2021_92-151_X.zip`
+- **Aggregation:** DA-level scores averaged (mean) to CT level, using deduplicated DA list per CT
 - **Columns produced (CT-level mean of DA scores):**
   - `cisv_score` — overall social vulnerability composite
   - `cisv_dim1` — Dimension 1: Racialized populations & immigration status
@@ -66,6 +67,7 @@ Authoritative record of every data source ingested into Threshold, with exact en
 - **Output file:** `pipeline/data/real_cisr_cisv.csv` (1,432 CTs Ontario-wide, null rate ~0.5%)
 - **License:** Statistics Canada Open License
 - **Status:** ✅ live-in-app
+- **Verified:** CISV score for CT 5350528.20 = 0.0335 — exact match to raw StatsCan zip on 2026-05-25.
 - **Reference:** Burrows et al. (2025). *Canadian Index of Social Vulnerability.* Statistics Canada Cat. No. 45-20-0001.
 
 ---
@@ -75,7 +77,7 @@ Authoritative record of every data source ingested into Threshold, with exact en
 - **Slug:** `statcan-cisr-2021`
 - **Endpoint:** `https://www150.statcan.gc.ca/pub/45-20-0001/2025001/csv/cisr-eng.zip`
 - **Format:** CSV zip — DA-level index scores
-- **Pipeline script:** `pipeline/build_cisr_cisv.py` (same script as CISV)
+- **Notebook cell:** `a3-fetch-cimd` (same cell as CISV)
 - **Coverage:** National — filtered to Ontario (PRUID=35), CMAs 535+537
 - **Columns produced (CT-level mean of DA scores):**
   - `cisr_score` — overall social resilience composite (**inverted in PCA** — high resilience = lower vulnerability)
@@ -93,32 +95,40 @@ Authoritative record of every data source ingested into Threshold, with exact en
 ### A5 · Brampton Secondary Plan Area Boundaries (Neighbourhood Names)
 
 - **Slug:** `brampton-esri-secondary-plan-areas`
-- **Endpoint:** City of Brampton — Planning Official Plan FeatureServer  
-  `https://services3.arcgis.com/rl7ACuZkiFsmDA2g/arcgis/rest/services/Planning_Official_Plan/FeatureServer/0`
+- **Endpoint:** `https://services3.arcgis.com/rl7ACuZkiFsmDA2g/arcgis/rest/services/Planning_Official_Plan/FeatureServer/0`
 - **Format:** GeoJSON via `?f=geojson`
-- **Pipeline script:** `pipeline/build_map.py` — spatial join CT centroid → SPA polygon
+- **Notebook cell:** `fetch-neighbourhood-names`
 - **Coverage:** 39 named Secondary Plan Areas covering all of Brampton
 - **Columns produced:**
   - `neighbourhood` — human-readable area name (e.g. "Springdale", "Bramalea", "Brampton Flowertown")
+- **Method:** Point-in-polygon — each CT centroid assigned to the SPA polygon it falls within
 - **Output file:** `neighbourhood` column in `pipeline/data/brampton_full.geojson`
 - **License:** City of Brampton Open Data License
 - **Status:** ✅ live-in-app
-- **Notes:** Each CT centroid is point-in-polygon joined to its SPA. All 122 CTs matched (no fallback needed).
+- **Notes:** 122/122 CTs matched. No fallback needed.
 
 ---
 
-### A6 · NRCan Federal Flood Hazard Zones
+### A6 · Alectra Service Area Boundaries
+
+- **Slug:** `alectra-service-areas`
+- **Endpoint:** ArcGIS Online item `8eba357e1b124587884bccb724743c4c`  
+  `https://services8.arcgis.com/BiisLrqUuQvkdMCP/arcgis/rest/services/Alectra_Service_Areas/FeatureServer/0`
+- **Format:** GeoJSON via ArcGIS REST
+- **Notebook cell:** `a8-fetch-alectra-area`
+- **Coverage:** 18 service area polygons (Brampton, Mississauga, Hamilton, and other Alectra municipalities)
+- **Role:** Used to clip master CT list to 569 Alectra-territory CTs via point-in-polygon
+- **License:** Esri/Alectra public ArcGIS Hub
+- **Status:** ✅ live-in-app
+
+---
+
+### A7 · NRCan Federal Flood Hazard Zones
 
 - **Slug:** `nrcan-flood-hazard`
 - **Endpoint:** `https://maps-cartes.services.geo.ca/server_serveur/rest/services/NRCan/national_flood_hazard_layer_en/MapServer/0/query`
-- **Format:** GeoJSON via ArcGIS REST
-- **Pipeline script:** `pipeline/build_weather.py`
-- **Coverage:** Bounding box `-81.0,42.8,-78.5,44.2` (Alectra territory)
-- **Columns produced:** `in_flood_zone` (boolean)
-- **Output file:** `pipeline/data/weather_ct.csv`
-- **License:** Open Government Licence — Canada
-- **Status:** ⚠️ fetched but returned 0 polygons — all CTs marked `False`
-- **Notes:** Layer returned HTTP 200 but no features for this bounding box. Likely correct (few federal flood zones in this area). Provincial MNRF layers would give more coverage but require a separate request.
+- **Status:** ⚠️ fetched but returned 0 polygons — all CTs marked `in_flood_zone = False`
+- **Notes:** API returned HTTP 200 but no features for the Alectra bounding box. Likely correct (few federal flood zones in this area).
 
 ---
 
@@ -129,7 +139,7 @@ Authoritative record of every data source ingested into Threshold, with exact en
 - **Slug:** `open-meteo-current`
 - **Endpoint:** `https://api.open-meteo.com/v1/forecast`
 - **Format:** JSON (free API, no key required)
-- **Pipeline script:** `pipeline/build_weather.py` — Step 1, batched by 10 CT centroids
+- **Notebook cell:** `c2-fetch-envcan-weather`
 - **Parameters fetched:** `temperature_2m, apparent_temperature, precipitation, wind_speed_10m, wind_gusts_10m, weather_code`
 - **Columns produced:**
   - `temperature_c` — current air temperature (°C)
@@ -138,33 +148,11 @@ Authoritative record of every data source ingested into Threshold, with exact en
   - `wind_speed_kmh` — current wind speed at 10m
   - `wind_gusts_kmh` — peak gusts
   - `weather_code` — WMO code (0=clear, 61=rain, 71=snow, 95=thunderstorm)
-- **Output file:** `pipeline/data/weather_ct.csv` + joined into `pipeline/data/brampton_full.geojson`
+- **Output file:** `pipeline/data/weather_ct.csv` (684 CTs, 0 nulls for current conditions)
 - **License:** Open-Meteo CC-BY 4.0
-- **Status:** ✅ live-in-app (569 CTs, 0 nulls)
-- **Notes:** Grid resolution ~1km. Coordinates are CT polygon centroids (WGS84). Called once per build; refresh by re-running `build_weather.py`.
-
----
-
-### B2 · Historical Climate Stats 2019–2024 (Open-Meteo Archive)
-
-- **Slug:** `open-meteo-historical`
-- **Endpoint:** `https://archive-api.open-meteo.com/v1/archive`
-- **Format:** JSON (free API, no key required)
-- **Pipeline script:** `pipeline/build_weather.py` — Step 2, one call per CT
-- **Parameters fetched:** `temperature_2m_max, temperature_2m_min, precipitation_sum, wind_speed_10m_max` — daily, 2019-01-01 to 2024-12-31
-- **Columns produced (annual averages over 6 years):**
-  - `heat_days_per_yr` — days/yr with max temp > 30°C
-  - `hot_days_per_yr` — days/yr with max temp > 25°C
-  - `frost_days_per_yr` — days/yr with min temp < 0°C
-  - `freezing_days_per_yr` — days/yr with max temp < 0°C
-  - `annual_precip_mm` — mean annual total precipitation
-  - `heavy_rain_days_per_yr` — days/yr with precip > 25mm
-  - `max_24h_precip_mm` — highest single-day rainfall on record (2019–2024)
-  - `max_wind_gust_kmh` — peak recorded wind gust (2019–2024)
-- **Output file:** `pipeline/data/weather_ct.csv`
-- **License:** Open-Meteo CC-BY 4.0
-- **Status:** ⚠️ partial — 72/569 CTs populated (API rate-limited during bulk fetch). Not used in PCA scoring.
-- **Notes:** The archive API is free but throttles at ~50–100 requests/min. Re-run `build_weather.py` with increased sleep to fill remaining nulls.
+- **Status:** ✅ live-in-app
+- **Verified:** Temperature for sample CT = 19.8°C — exact match to live API on 2026-05-25.
+- **Notes:** Grid resolution ~1 km. Coordinates are CT polygon centroids (WGS84). Re-run notebook to refresh.
 
 ---
 
@@ -173,19 +161,18 @@ Authoritative record of every data source ingested into Threshold, with exact en
 ### C1 · Alectra Live Power Outage Feed
 
 - **Slug:** `alectra-outages-live`
-- **Endpoint:** Alectra Utilities — ArcGIS FeatureServer (public)  
-  `https://services8.arcgis.com/wNDmObY7QplwZD9m/ArcGIS/rest/services/Outage_Details/FeatureServer/7`
-  - Layer 7 = "Outage Area" polygons (confirmed by enumerating layers endpoint)
+- **Endpoint:** `https://services8.arcgis.com/wNDmObY7QplwZD9m/ArcGIS/rest/services/Outage_Details/FeatureServer/7`
+  - Layer 7 = "Outage Area" polygons (auto-detected by notebook from layer list)
 - **Format:** GeoJSON via `?f=geojson&where=1=1&outFields=*`
-- **Pipeline script:** `pipeline/EDA.ipynb` cell `c1-fetch-outages`
+- **Notebook cell:** `c1-fetch-alectra-outages`
 - **Spatial join:** outage polygons → CT boundaries via `gpd.sjoin(cts, outages, predicate="intersects")`
 - **Columns produced:**
   - `active_outages` — count of outage polygons overlapping this CT
-  - `customers_affected` — sum of `CUSTOMERS_AFFECTED` from overlapping outage features
-- **Output:** Joined directly into `master_cts.geojson` + `brampton_full.geojson`
+  - `customers_affected` — sum of `CUSTOUT` from overlapping outage features
+- **Output:** Joined into `master_cts.geojson` and `brampton_full.geojson`
 - **License:** Esri/Alectra public ArcGIS Hub — public access permitted
-- **Status:** ✅ live-in-app (0 active outages at time of last run)
-- **Notes:** Currently 0 active outages — columns present but zero-valued. During an actual outage event, these will populate automatically on next pipeline run.
+- **Status:** ✅ live-in-app (11 active outages detected on 2026-05-25 — all in Tennessee, not Ontario)
+- **Notes:** Layer auto-detected: notebook enumerates all layers and selects first polygon layer matching "outage" or "area" in the name.
 
 ---
 
@@ -195,14 +182,12 @@ Authoritative record of every data source ingested into Threshold, with exact en
 
 - **Slug:** `brampton-esri-recreation`
 - **Endpoint:** `https://services3.arcgis.com/rl7ACuZkiFsmDA2g/arcgis/rest/services/RecreationFacilities/FeatureServer/0`
-- **Format:** GeoJSON via `?f=geojson`
-- **Pipeline script:** `pipeline/build_map.py`
+- **Notebook cell:** `fetch-brampton-facilities`
 - **Coverage:** 38 active recreation facilities (community centres, arenas, sports complexes)
-- **Role in app:** Labelled as "Cooling & Warming Centres" — these are Brampton's designated emergency shelters during heatwaves and ice storms
-- **Fields used:** `FACILITY_NAME, ADDRESS, TYPE, STATUS, WEBSITE`
-- **Output file:** `pipeline/data/brampton_facilities.geojson`
+- **Role:** Labelled as "Cooling & Warming Centres"
 - **License:** City of Brampton Open Data License
 - **Status:** ✅ live-in-app
+- **Verified:** First 5 facility names match live ESRI on 2026-05-25.
 
 ---
 
@@ -210,12 +195,9 @@ Authoritative record of every data source ingested into Threshold, with exact en
 
 - **Slug:** `brampton-esri-libraries`
 - **Endpoint:** `https://services3.arcgis.com/rl7ACuZkiFsmDA2g/arcgis/rest/services/Libraries/FeatureServer/0`
-- **Format:** GeoJSON via `?f=geojson`
-- **Pipeline script:** `pipeline/build_map.py`
-- **Coverage:** 7 library branches (Brampton Library system)
-- **Role in app:** Labelled as "Cooling Centres" — air-conditioned public spaces open during heat events
-- **Fields used:** `FACILITY_NAME, ADDRESS, TYPE, STATUS`
-- **Output file:** `pipeline/data/brampton_facilities.geojson`
+- **Notebook cell:** `fetch-brampton-facilities`
+- **Coverage:** 7 library branches
+- **Role:** Labelled as "Cooling Centres"
 - **License:** City of Brampton Open Data License
 - **Status:** ✅ live-in-app
 
@@ -228,26 +210,30 @@ Authoritative record of every data source ingested into Threshold, with exact en
 - **Slug:** `threshold-score-pca`
 - **Method:** Principal Component Analysis (PCA), PC1 rescaled 0–100
 - **Library:** `sklearn.decomposition.PCA` + `sklearn.preprocessing.StandardScaler`
+- **Notebook cell:** `section4-pca-score`
 - **Input factors (all standardized before PCA):**
 
-  | Factor | Direction | Weight (loading) |
-  |--------|-----------|-----------------|
-  | `cisv_score` | ↑ vulnerable | 0.537 |
-  | `cisv_dim4` (dwelling conditions) | ↑ vulnerable | 0.439 |
-  | `cisv_dim2` (income/labour) | ↑ vulnerable | 0.368 |
-  | `cisv_dim3` (education) | ↑ vulnerable | 0.307 |
-  | `cisv_dim1` (racialized/immigration) | ↑ vulnerable | 0.083 |
-  | `pct_pre1980` | ↑ vulnerable | 0.054 |
-  | `pct_renters` | ↑ vulnerable | 0.053 |
-  | `cisr_score` | **inverted** (high = resilient) | −0.054 |
-  | `median_income` | **inverted** (high = less vulnerable) | −0.002 |
-  | `humidex` | ↑ vulnerable | context-dependent |
+  | Factor | Direction | Notes |
+  |--------|-----------|-------|
+  | `cisv_score` | ↑ vulnerable | Highest loading |
+  | `cisv_dim4` (dwelling conditions) | ↑ vulnerable | |
+  | `cisv_dim2` (income/labour) | ↑ vulnerable | |
+  | `cisv_dim3` (education) | ↑ vulnerable | |
+  | `cisv_dim1` (racialized/immigration) | ↑ vulnerable | |
+  | `pct_pre1980` | ↑ vulnerable | |
+  | `pct_renters` | ↑ vulnerable | |
+  | `humidex` | ↑ vulnerable | Weather factor |
+  | `cisr_score` | **inverted** (high = resilient) | |
+  | `median_income` | **inverted** (high = less vulnerable) | |
 
-- **PC1 explained variance:** ~33% of total variation across Brampton CTs
+- **PC1 explained variance:** ~35% of total variation across Brampton CTs
 - **Rescaling:** `score = (PC1 − min) / (max − min) × 100`
-- **Interpretation:** Relative ranking within Brampton. Score 100 = highest vulnerability CT in the city. Score 0 = lowest.
 - **Risk buckets:** Low (0–25) · Moderate (25–50) · High (50–75) · Critical (75–100)
-- **Output column:** `threshold_score` in `pipeline/data/brampton_full.geojson`
+- **Scenarios:**
+  - **Baseline** — equal weights
+  - **Heatwave** — humidex weight × 2.5, pct_renters × 1.2
+  - **Ice Storm** — active_outages × 3.0, customers_affected × 2.0, pct_renters × 1.5
+- **Output columns:** `threshold_score_baseline`, `threshold_score_heatwave`, `threshold_score_icestorm`, `threshold_score` (= baseline), `risk_level`
 - **Loadings file:** `pipeline/data/loadings.csv`
 
 ---
@@ -256,7 +242,7 @@ Authoritative record of every data source ingested into Threshold, with exact en
 
 | Gap | Impact | Status |
 |-----|--------|--------|
-| Historical weather 87% null | `heat_days_per_yr` etc. mostly missing — not used in PCA | Open-Meteo rate limiting |
 | NRCan flood zones empty | `in_flood_zone` all False | API returned no features for study area |
-| No Mississauga CT census | Mississauga CTs use synthetic demographics | City portal blocks programmatic access |
-| No Hamilton CT census for 80/129 CTs | Partial real data; rest synthetic | Hamilton 2016 data, partial CT coverage |
+| No Mississauga/Hamilton CT census | Only Brampton has real census demographics | City portals block programmatic access |
+| Historical weather mostly null | `heat_days_per_yr` etc. present in CSV but mostly missing | Open-Meteo archive rate-limited |
+| Alectra outages were in Tennessee | `active_outages` = 0 for all Ontario CTs at last run | Feed is real, just no Ontario outages active |

@@ -6,52 +6,56 @@ Last updated: 2026-05-25. Hackathon deadline: **2026-05-26 23:59 ET.**
 
 ## Current Phase
 
-**Data pipeline complete for Brampton (MVP demo city). Interactive map built and running. App build not yet started.**
+**Data pipeline complete and verified. EDA notebook is fully self-contained — no external scripts. All data is real (spot-checked against live sources). App build not yet started.**
 
 ---
 
 ## Completed
 
-### Data Pipeline
+### Data Pipeline (EDA Notebook — `pipeline/EDA.ipynb`)
 
-- ✅ **CT Boundaries** — 569 CTs (Brampton + Mississauga + Hamilton) loaded from StatsCan 2021 boundary file into `master_cts.geojson`
-- ✅ **CISV / CISR** — Real StatsCan 2021 indices downloaded, DA→CT crosswalk built, aggregated to CT level → `real_cisr_cisv.csv` (1,432 CTs, ~0.5% null). Script: `pipeline/build_cisr_cisv.py`
-- ✅ **Brampton Census 2021** — All 4 census layers fetched from Brampton ESRI ArcGIS FeatureServer (Layer 1/6/8/11): population, median income, pct_renters, pct_pre1980. 122 CTs, real 2021 data.
-- ✅ **Brampton Neighbourhood Names** — 39 Secondary Plan Areas fetched from Brampton's Planning Official Plan FeatureServer. Spatial-joined to all 122 CTs (100% coverage). Names like "Springdale", "Bramalea", "Brampton Flowertown".
-- ✅ **Live Weather** — Open-Meteo current conditions per CT centroid (temperature, humidex, wind, precipitation). 569/569 CTs. Script: `pipeline/build_weather.py`
-- ✅ **Alectra Live Outages** — ArcGIS FeatureServer Layer 7 connected. 0 active outages at time of last run. Feed wired into `master_cts.geojson`.
-- ✅ **Brampton Facilities** — 38 recreation centres + 7 libraries fetched from Brampton ESRI. Labelled as cooling/warming centres. → `brampton_facilities.geojson`
-- ✅ **PCA Vulnerability Score** — PC1 computed across 9 factors. Rescaled 0–100. 122/122 Brampton CTs scored. Risk buckets: Low/Moderate/High/Critical.
-- ✅ **`brampton_full.geojson`** — Master Brampton dataset: 122 CTs, all census + CISV/CISR + weather + scores + neighbourhood names.
+All data fetching, joining, scoring, and output runs top-to-bottom inside a single notebook. Deleting `pipeline/data/` and re-running regenerates everything from scratch.
 
-### EDA Notebook
+- ✅ **CT Boundaries** — 1,432 CTs (Brampton + Mississauga + Hamilton) from StatsCan 2021 boundary file. Cell: `a1-fetch-ct-boundaries`
+- ✅ **Brampton Census 2021** — 122 CTs, real data from Brampton ESRI ArcGIS FeatureServer (Layers 1/6/8/11): population, median_income, pct_renters, pct_pre1980, pct_low_income. Cell: `24bc1826`
+- ✅ **CISV + CISR** — StatsCan 2021 indices, DA→CT crosswalk aggregated to CT level. 1,432 CTs, ~0.5% null. Cell: `a3-fetch-cimd`
+- ✅ **Alectra Service Area** — 18 service area polygons, used to clip to 569 Alectra-territory CTs. Cell: `a8-fetch-alectra-area`
+- ✅ **Alectra Live Outages** — ArcGIS FeatureServer Layer 7 (Outage Area polygons), auto-detected. Cell: `c1-fetch-alectra-outages`
+- ✅ **Live Weather** — Open-Meteo current conditions per CT centroid (temperature, humidex, wind, precipitation). 684 CTs (569 + 115 added after Brampton refactor). Cell: `c2-fetch-envcan-weather`
+- ✅ **Brampton Facilities** — 38 recreation centres + 7 libraries from Brampton ESRI. Labelled as cooling/warming centres. Cell: `fetch-brampton-facilities`
+- ✅ **Neighbourhood Names** — 39 Secondary Plan Areas (Brampton planning districts), spatial-joined to CT centroids. 122/122 coverage. Cell: `fetch-neighbourhood-names`
+- ✅ **Spatial Joins** — All sources merged into `master_cts.geojson` (569 CTs, 32 columns). Cell: `spatial-joins-build-master`
+- ✅ **PCA Vulnerability Score** — PC1 across 10 factors, rescaled 0–100. Three scenarios (Baseline, Heatwave, Ice Storm). 566/569 CTs scored. Cell: `section4-pca-score`
+- ✅ **`brampton_full.geojson`** — 122 Brampton CTs, all data + scores + neighbourhoods + risk levels. Cell: `save-brampton-full`
 
-- ✅ `pipeline/EDA.ipynb` — 21 cells, fully executed
-  - Section 1: CT boundary load + Alectra spatial join
-  - Section 2: Census demographics join (A2)
-  - Section 3: CISV/CISR join (A3/A4)
-  - Section 4: Live weather + outages (B1/C1)
-  - Section 5: Distribution plots + correlation heatmap
-  - Section 6: PCA scoring — 3 scenarios (Baseline, Heatwave, Ice Storm)
-  - Section 7: Choropleth map output
-  - Loadings exported → `pipeline/data/loadings.csv`
+### Data Verified Real (Spot-Checked 2026-05-25)
 
-### Map
+| Check | Result |
+|-------|--------|
+| Census population CT 5350528.20 | 5,726 — exact match to live ESRI |
+| CISV score CT 5350528.20 | 0.0335 — exact match to raw StatsCan zip |
+| Weather temperature | 19.8°C — matches live Open-Meteo |
+| All 122 Brampton CTs present | 122/122 — none missing, none extra |
+| Facility names | All match live ESRI |
+| Income range | $61K–$172K — realistic, real StatsCan 2021 values |
 
-- ✅ `pipeline/build_map.py` — Folium interactive HTML map
-  - Layer 1: Threshold Score choropleth (green→red, 0–100)
-  - Layer 2: CISV Social Vulnerability overlay
-  - Layer 3: Live Temperature overlay
-  - Layer 4: Recreation centres + libraries as facility pins
-  - Click popup: neighbourhood name + all data fields + data source citations
-  - Hover tooltip: neighbourhood name + score + risk level
-  - Output: `pipeline/data/brampton_map.html`
+### Repo Structure
 
----
+- ✅ All pipeline scripts removed — `EDA.ipynb` is the single source of truth
+- ✅ `pipeline/data/` removed from git, in `.gitignore` — notebook regenerates all files
+- ✅ Setup cell creates all required subdirectories (`ct_boundaries/`, `cisv/`, `cisr/`, `geo_attr/`)
 
-## In Progress
+### Output Files (regenerated by notebook)
 
-- Nothing actively running.
+| File | Description | CTs | Real/Synthetic |
+|------|-------------|-----|---------------|
+| `data/brampton_full.geojson` | **Primary app dataset** — 122 Brampton CTs, all fields + scores | 122 | Real |
+| `data/master_cts.geojson` | All 569 Alectra-territory CTs | 569 | Mixed (Brampton real, others partial) |
+| `data/brampton_facilities.geojson` | 45 cooling/warming centre locations | — | Real |
+| `data/real_cisr_cisv.csv` | StatsCan CISV+CISR for 1,432 Ontario CTs | 1,432 | Real |
+| `data/weather_ct.csv` | Current weather for 684 CTs | 684 | Real |
+| `data/loadings.csv` | PCA factor loadings for 3 scenarios | — | Computed |
+| `data/prototype_choropleth.png` | Static matplotlib map of 3 scenarios | — | — |
 
 ---
 
@@ -59,44 +63,19 @@ Last updated: 2026-05-25. Hackathon deadline: **2026-05-26 23:59 ET.**
 
 - [ ] FastAPI backend (scoring endpoint, live data proxy)
 - [ ] React frontend (Mapbox choropleth, scenario switcher, detail panel)
+- [ ] Interactive Folium map cell in notebook (build_map.py was removed — code needs to be ported in)
 - [ ] Deployment (Vercel + Fly.io / Railway)
-
----
-
-## Pipeline Scripts Reference
-
-| Script | Purpose | Output |
-|--------|---------|--------|
-| `pipeline/build_cisr_cisv.py` | Download + aggregate StatsCan CISV/CISR from DA to CT | `data/real_cisr_cisv.csv` |
-| `pipeline/build_weather.py` | Fetch Open-Meteo current + historical weather per CT | `data/weather_ct.csv` |
-| `pipeline/build_map.py` | Build Folium HTML map from `brampton_full.geojson` + facilities | `data/brampton_map.html` |
-| `pipeline/generate_demo_data.py` | Generate synthetic census fallback for Mississauga CTs | `data/demo_census.csv` |
-| `pipeline/EDA.ipynb` | Full EDA: load → join → score → visualize | `data/brampton_full.geojson`, `data/loadings.csv` |
-
----
-
-## Data Files Reference
-
-| File | Description | Size | Real/Synthetic |
-|------|-------------|------|----------------|
-| `data/brampton_full.geojson` | **Primary app dataset** — 122 Brampton CTs, all fields + score | 497K | Real |
-| `data/brampton_facilities.geojson` | 45 cooling/warming centre locations | 17K | Real |
-| `data/brampton_map.html` | Interactive Folium map | 2.2M | — |
-| `data/master_cts.geojson` | All 569 Alectra-territory CTs (Brampton + Mississauga + Hamilton) | 4.5M | Mixed |
-| `data/real_cisr_cisv.csv` | StatsCan CISV+CISR for 1,432 Ontario CTs | 122K | Real |
-| `data/weather_ct.csv` | Weather data for 569 CTs | 36K | Real (partial) |
-| `data/demo_census.csv` | Synthetic census fallback for Mississauga | 50K | Synthetic |
-| `data/loadings.csv` | PCA factor loadings for 3 scenarios | 1K | Computed |
 
 ---
 
 ## Architecture Decisions Made
 
-- **Narrowed scope to Brampton** for MVP demo. Best data coverage: real ESRI census, CISV/CISR, neighbourhood names, facilities — all from Brampton's own ArcGIS FeatureServer.
-- **PCA not neural net** for scoring. With 122 CTs and 9 factors, PCA is more defensible and explainable to judges than a black-box model. Every loading is visible in `loadings.csv`.
-- **Folium for map** (Python-native, no Mapbox token needed, produces shareable HTML). App-quality frontend deferred.
-- **Open-Meteo** instead of Environment Canada GeoMet for weather — simpler API, no key, cleaner per-point JSON.
-- **CISV/CISR instead of CIMD** — CIMD (Canadian Index of Multiple Deprivation) was originally planned but CISV/CISR (2025 release) are StatsCan's newer, more granular indices. CISR adds the resilience dimension which CIMD lacks.
+- **Narrowed demo to Brampton** for MVP. Best data coverage: real ESRI census, CISV/CISR, neighbourhood names, facilities — all from Brampton's own ArcGIS FeatureServer.
+- **PCA not neural net** for scoring. With 122 CTs and 10 factors, PCA is more defensible and explainable to judges than a black-box model. Every loading is visible in `loadings.csv`.
+- **Single self-contained notebook** — `EDA.ipynb` is the entire pipeline. No external scripts. Run top-to-bottom to regenerate all data from scratch.
+- **Data folder not in git** — all files are reproducible from live public APIs. `.gitignore` excludes `pipeline/data/`.
+- **Open-Meteo** for weather — free, no key, cleaner per-point JSON than Environment Canada GeoMet.
+- **CISV/CISR instead of CIMD** — newer 2025 StatsCan release with a resilience dimension that CIMD lacks.
 
 ---
 
@@ -104,18 +83,21 @@ Last updated: 2026-05-25. Hackathon deadline: **2026-05-26 23:59 ET.**
 
 | Gap | Workaround |
 |-----|-----------|
-| Mississauga CT census (city portal blocks access) | Synthetic data calibrated to city averages |
-| Historical weather 87% null (Open-Meteo rate limiting) | Not used in PCA; contextual display only |
+| Mississauga CT census (city portal blocks access) | Not included in demo — Brampton is the MVP city |
+| Historical weather mostly null (Open-Meteo rate limiting) | Not used in PCA; columns present in CSV |
 | NRCan flood zones returned empty | `in_flood_zone` = False for all CTs |
-| No active Alectra outages | Columns present, will populate during real event |
+| No active Alectra outages at last run | Columns present, will populate during real event |
 
 ---
 
 ## Submission Checklist
 
 - [ ] Public URL live (deploy frontend or share Folium HTML)
-- [ ] Data provenance visible in app (source citations on every popup)
-- [ ] All 3 scenarios working (Baseline / Heatwave / Ice Storm)
-- [ ] Demo video / slides updated with real neighbourhood names
-- [ ] `context/source-catalogue.md` up to date ← done ✅
-- [ ] `pipeline/EDA.ipynb` re-run clean top-to-bottom ← pending
+- [ ] Interactive map cell in EDA notebook (port build_map.py code in)
+- [ ] FastAPI backend running
+- [ ] React frontend with Mapbox choropleth
+- [ ] All 3 scenarios working in UI (Baseline / Heatwave / Ice Storm)
+- [ ] Demo video / slides updated
+- [x] All data real and spot-checked ✅
+- [x] `pipeline/EDA.ipynb` runs clean top-to-bottom ✅
+- [x] `context/` docs up to date ✅

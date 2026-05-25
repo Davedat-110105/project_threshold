@@ -24,7 +24,7 @@
 
 - `frontend/` — React + TypeScript app. Owns the map, scenario switching, detail panel, recommendation panel, live overlay toggles, and all client-side rendering. Talks to the backend over HTTP. Never computes scores itself — it consumes them.
 - `backend/` — FastAPI service. Owns ML inference, LLM orchestration, recommendation composition, the Tier C live endpoints, and the polling archive of the Alectra outage feed. Reads from the ontology store. Does not own ingestion of Tier A.
-- `pipeline/` — Python scripts and notebooks. Owns ingestion, normalization, spatial joins, model training, and writing the ontology to storage (Tier A as GeoJSON to `frontend/public/data/`, Tier B into Postgres). Runs at build time and on cron, not in the request path.
+- `pipeline/` — Single notebook (`EDA.ipynb`). Owns all ingestion, normalization, spatial joins, PCA scoring, and writing output GeoJSON/CSV files to `pipeline/data/`. Runs top-to-bottom to regenerate all data from scratch. No external scripts — everything is inline notebook cells.
 - `context/` — Specification documents. Source of truth for what the system should be.
 - `docs/` — Reference materials (hackathon docs, challenge sets, external references).
 
