@@ -1,78 +1,121 @@
 # Progress Tracker
 
-Update this file after every meaningful implementation change.
+Last updated: 2026-05-25. Hackathon deadline: **2026-05-26 23:59 ET.**
+
+---
 
 ## Current Phase
 
-- Specification complete and aligned with sponsor research. Geographic scope, ontology entity, and primary data sources locked. Implementation not yet started in `project_threshold/`. A reference prototype exists at `/Users/datta/Documents/Threshold` (Vite + JSX + Mapbox + Recharts, Toronto-only static scenarios) — used as a UX/component reference only; v2 is a fresh build with a different scope and architecture.
+**Data pipeline complete for Brampton (MVP demo city). Interactive map built and running. App build not yet started.**
 
-## Current Goal
-
-- First end-to-end vertical slice: Census Tract boundaries (A1) + Census demographics (A2) + Alectra service area (A8) joined into `frontend/public/data/communities.geojson`, then rendered as a choropleth using a dummy composite score derived from A2 fields. Three sources, three layers, one map. No ML, no LLM, no recommendations yet.
+---
 
 ## Completed
 
-- Project context drafted: `project-overview.md`, `architecture.md`, `ai-workflow-rules.md`, `code-standards.md`, `ui-context.md`.
-- Hackathon docs reviewed and stored under `docs/`: Opening Day slides, Theme 3 Challenge Set 03.
-- Pipeline exploration notebook present at `pipeline/EDA.ipynb` (placeholder).
-- Reference prototype at `/Users/datta/Documents/Threshold` reviewed for UX patterns.
-- Sponsor research conducted and recorded in `context/sponsor-research.md`. Alectra outage feed unlock identified (ArcGIS Hub). Mentor names, sessions, and outreach plan documented.
-- Source catalogue drafted in `context/source-catalogue.md` — 17 sources across Tier A/B/C scoped to MVP territory.
-- Geographic scope locked: **Mississauga + Brampton + Hamilton, ~400 Census Tracts.**
-- Analytical unit locked: **Census Tract as `Community`,** with municipal neighbourhood / planning area / ward labels as overlay.
-- Pitch framing locked: *"Threshold is the community equity and vulnerability layer that Alectra's innovation portfolio doesn't have yet, built on Esri Canada infrastructure."*
+### Data Pipeline
+
+- ✅ **CT Boundaries** — 569 CTs (Brampton + Mississauga + Hamilton) loaded from StatsCan 2021 boundary file into `master_cts.geojson`
+- ✅ **CISV / CISR** — Real StatsCan 2021 indices downloaded, DA→CT crosswalk built, aggregated to CT level → `real_cisr_cisv.csv` (1,432 CTs, ~0.5% null). Script: `pipeline/build_cisr_cisv.py`
+- ✅ **Brampton Census 2021** — All 4 census layers fetched from Brampton ESRI ArcGIS FeatureServer (Layer 1/6/8/11): population, median income, pct_renters, pct_pre1980. 122 CTs, real 2021 data.
+- ✅ **Brampton Neighbourhood Names** — 39 Secondary Plan Areas fetched from Brampton's Planning Official Plan FeatureServer. Spatial-joined to all 122 CTs (100% coverage). Names like "Springdale", "Bramalea", "Brampton Flowertown".
+- ✅ **Live Weather** — Open-Meteo current conditions per CT centroid (temperature, humidex, wind, precipitation). 569/569 CTs. Script: `pipeline/build_weather.py`
+- ✅ **Alectra Live Outages** — ArcGIS FeatureServer Layer 7 connected. 0 active outages at time of last run. Feed wired into `master_cts.geojson`.
+- ✅ **Brampton Facilities** — 38 recreation centres + 7 libraries fetched from Brampton ESRI. Labelled as cooling/warming centres. → `brampton_facilities.geojson`
+- ✅ **PCA Vulnerability Score** — PC1 computed across 9 factors. Rescaled 0–100. 122/122 Brampton CTs scored. Risk buckets: Low/Moderate/High/Critical.
+- ✅ **`brampton_full.geojson`** — Master Brampton dataset: 122 CTs, all census + CISV/CISR + weather + scores + neighbourhood names.
+
+### EDA Notebook
+
+- ✅ `pipeline/EDA.ipynb` — 21 cells, fully executed
+  - Section 1: CT boundary load + Alectra spatial join
+  - Section 2: Census demographics join (A2)
+  - Section 3: CISV/CISR join (A3/A4)
+  - Section 4: Live weather + outages (B1/C1)
+  - Section 5: Distribution plots + correlation heatmap
+  - Section 6: PCA scoring — 3 scenarios (Baseline, Heatwave, Ice Storm)
+  - Section 7: Choropleth map output
+  - Loadings exported → `pipeline/data/loadings.csv`
+
+### Map
+
+- ✅ `pipeline/build_map.py` — Folium interactive HTML map
+  - Layer 1: Threshold Score choropleth (green→red, 0–100)
+  - Layer 2: CISV Social Vulnerability overlay
+  - Layer 3: Live Temperature overlay
+  - Layer 4: Recreation centres + libraries as facility pins
+  - Click popup: neighbourhood name + all data fields + data source citations
+  - Hover tooltip: neighbourhood name + score + risk level
+  - Output: `pipeline/data/brampton_map.html`
+
+---
 
 ## In Progress
 
-- None — implementation has not started in this repo.
+- Nothing actively running.
 
-## Next Up (ordered, pipeline-first)
+---
 
-1. **Ontology stub** — define `Community`, `Building`, `GridFeeder`, `Shelter`, `WeatherCell`, `PollutionSource`, `Outage`, `Advisory` as pydantic models in `backend/app/ontology.py` and as TS types in `frontend/src/lib/ontology.ts`. Schema only — no behaviour. Source-of-truth lives in `architecture.md`.
-2. **Pipeline scaffolding** — set up `pipeline/sources/` with one module per source slug (empty `fetch()` and `normalize()` stubs). Add `pipeline/manifest.py` writing run-level provenance.
-3. **First ingestion — A1 Census Tract boundaries** — fetch from StatsCan, filter to Toronto + Hamilton CMAs, intersect with the cities of Mississauga + Brampton + Hamilton, write to `frontend/public/data/communities.geojson`.
-4. **A2 Census demographics** — fetch StatsCan Census Profile by CT, join into `Community.properties` in the same GeoJSON.
-5. **A8 Alectra service area** — fetch via ArcGIS REST, flag each `Community` with `served_by_alectra` boolean, store the service-area polygon separately for map clipping.
-6. **EDA notebook** — open `pipeline/EDA.ipynb`, confirm the joined ontology answers "show me Hamilton — Beasley's full record" with real numbers.
-7. **First derived score** — port the weighted-composite scoring logic from the reference prototype's `config.js` into `backend/app/services/scoring.py`. Three scenarios.
-8. **Frontend scaffold** — Vite + React + TS + Tailwind + shadcn + Mapbox GL. Render the choropleth from the GeoJSON. Scenario switcher recolours.
-9. **A3 CIMD + A4 NRCan flood** — add as additional factors, regenerate `communities.geojson`.
-10. **C1 Alectra outage feed** — enumerate FeatureServer layers, identify customer outage polygon layer, wire as Tier C overlay + start the Postgres polling archive.
-11. **First ML model** — vulnerability composite NN trained on the fused Tier A features; export ONNX to `backend/models/`; expose via FastAPI.
-12. **Detail panel + recommendation card** — radar chart, factor bars, source citations, LLM briefing (Gemini), recommendation card with quantified inputs.
-13. **C2 weather overlay** — Environment Canada GeoMet as the second Tier C overlay.
+## Not Started
 
-## Open Questions
+- [ ] FastAPI backend (scoring endpoint, live data proxy)
+- [ ] React frontend (Mapbox choropleth, scenario switcher, detail panel)
+- [ ] Deployment (Vercel + Fly.io / Railway)
 
-- **Alectra customer-outage layer ID.** `Outage_Details/FeatureServer` layer 0 is internal "Barriers" trace data. The customer outage polygon layer ID is unknown until we enumerate `/layers?f=json`. Block on this before estimating Tier C effort.
-- **Hamilton cooling/warming centre source.** Hamilton publishes seasonal centre lists, not always as a stable open-data layer. May require scraping the City's seasonal advisory page.
-- **Esri Climate Hub layer enumeration.** Open-data page is JS-rendered; needs manual browser exploration to enumerate REST endpoints.
-- **GeoMet OGC API collection names.** Environment Canada renamed some collections; confirm exact names at `https://api.weather.gc.ca/collections` before wiring.
-- **ArcGIS Maps SDK vs Mapbox GL.** Default Mapbox for speed. Switching to ArcGIS Maps SDK would deepen Esri sponsor alignment but costs learning time. Revisit after MVP is green.
-- **DeepSeek critic layer.** Currently stretch. Confirm whether to ship dual-LLM architecture in MVP.
-- **Pollution layer (PS3).** Stretch. If shipped, decide whether it's a scoring factor or overlay-only.
+---
 
-## Architecture Decisions
+## Pipeline Scripts Reference
 
-- **Geographic scope: Alectra service territory, MVP = Mississauga + Brampton + Hamilton.** Pivoted from Toronto-only after sponsor research: Toronto Hydro has closed data, Alectra is a sponsor with open data, multi-city scope strengthens the equity narrative and the platform pitch.
-- **Analytical unit: Census Tract (`Community`).** Uniform across municipalities, joins directly to Census + CIMD, comparable across cities. Municipal labels overlay only.
-- **Ontology entity renamed: `Neighbourhood` → `Community`.** Matches multi-city scope and product language.
-- **Three-tier data architecture (A static, B daily, C live).** Adopted to be honest about data vintage. Static structural data is not faked as real-time, and live data is genuinely live.
-- **Ontology-first.** All sources normalize to a shared spatial entity model before scoring or ML. The Palantir-style fusion move that makes 17+ sources legible together.
-- **Numbers from models, prose from LLMs.** Hard invariant. LLMs do not produce probabilities or scores. They wrap prose around model outputs.
-- **Frontend computes nothing scored.** All scoring lives in the backend. Frontend renders.
-- **Fresh TypeScript build in `frontend/`.** Old JSX prototype at `/Users/datta/Documents/Threshold` is reference only.
-- **PyTorch for training, ONNX for inference.** Keeps backend dependency surface small.
-- **ArcGIS REST is the primary spatial-data ingestion mechanism** wherever it's available. Aligns with Esri sponsorship and gives uniform JSON access to Alectra outages + Living Atlas + Climate Hub in one stack.
-- **Alectra outage data unlock confirmed.** The live feed is on ArcGIS Hub with REST/WMS/WFS/GeoJSON access. Historical archive built by polling across the hackathon window.
-- **Pitch framing locked.** Threshold positions explicitly as the equity/vulnerability layer Alectra's innovation portfolio doesn't have. Stated in `project-overview.md` and `sponsor-research.md`.
+| Script | Purpose | Output |
+|--------|---------|--------|
+| `pipeline/build_cisr_cisv.py` | Download + aggregate StatsCan CISV/CISR from DA to CT | `data/real_cisr_cisv.csv` |
+| `pipeline/build_weather.py` | Fetch Open-Meteo current + historical weather per CT | `data/weather_ct.csv` |
+| `pipeline/build_map.py` | Build Folium HTML map from `brampton_full.geojson` + facilities | `data/brampton_map.html` |
+| `pipeline/generate_demo_data.py` | Generate synthetic census fallback for Mississauga CTs | `data/demo_census.csv` |
+| `pipeline/EDA.ipynb` | Full EDA: load → join → score → visualize | `data/brampton_full.geojson`, `data/loadings.csv` |
 
-## Session Notes
+---
 
-- Hackathon: Seneca Energy Hackathon 2026. Theme 3 (Community Energy, Equity & Sustainability), Challenge Set 03. PS1 and PS2 are MVP, PS3 stretch.
-- Submission deadline: **2026-05-26 23:59 ET.** Qualifier judging 2026-05-27. Finals 2026-05-30.
-- **Today is 2026-05-25.** Approximately 36 hours to submission.
-- Sponsors and partners: Alectra (utility — primary alignment target), Esri Canada (platform + data library), Seneca Student Federation, Octo, GDG, Toronto Tech Week, Comunity.
-- Alectra hackathon mentors: Keith Hemingway (May 26 10:00) and Daniel Carr (May 26 11:00). Esri Canada mentors: Daniel Noakes, Jonathan Van Dusen, Alex Smith (May 24 + May 25). Use Alex Smith for spatial-data and feeder-topology questions.
-- Reference prototype at `/Users/datta/Documents/Threshold` is for UX patterns only (tier colours, radar chart, scenario controls, detail panel) — do not port wholesale.
-- Reference Vision/PRD docs at `/Users/datta/Downloads/Threshold_Master_Vision.docx` and `/Users/datta/Downloads/Threshold_PRD.docx` are stale (Toronto-only, no fusion, no ML, no Alectra). Use only for brand language (Vision §05 product philosophy, §09 UX philosophy, §10 brand identity). PRD/Vision rewrite is a separate deliverable from the implementation; do not block code on it.
+## Data Files Reference
+
+| File | Description | Size | Real/Synthetic |
+|------|-------------|------|----------------|
+| `data/brampton_full.geojson` | **Primary app dataset** — 122 Brampton CTs, all fields + score | 497K | Real |
+| `data/brampton_facilities.geojson` | 45 cooling/warming centre locations | 17K | Real |
+| `data/brampton_map.html` | Interactive Folium map | 2.2M | — |
+| `data/master_cts.geojson` | All 569 Alectra-territory CTs (Brampton + Mississauga + Hamilton) | 4.5M | Mixed |
+| `data/real_cisr_cisv.csv` | StatsCan CISV+CISR for 1,432 Ontario CTs | 122K | Real |
+| `data/weather_ct.csv` | Weather data for 569 CTs | 36K | Real (partial) |
+| `data/demo_census.csv` | Synthetic census fallback for Mississauga | 50K | Synthetic |
+| `data/loadings.csv` | PCA factor loadings for 3 scenarios | 1K | Computed |
+
+---
+
+## Architecture Decisions Made
+
+- **Narrowed scope to Brampton** for MVP demo. Best data coverage: real ESRI census, CISV/CISR, neighbourhood names, facilities — all from Brampton's own ArcGIS FeatureServer.
+- **PCA not neural net** for scoring. With 122 CTs and 9 factors, PCA is more defensible and explainable to judges than a black-box model. Every loading is visible in `loadings.csv`.
+- **Folium for map** (Python-native, no Mapbox token needed, produces shareable HTML). App-quality frontend deferred.
+- **Open-Meteo** instead of Environment Canada GeoMet for weather — simpler API, no key, cleaner per-point JSON.
+- **CISV/CISR instead of CIMD** — CIMD (Canadian Index of Multiple Deprivation) was originally planned but CISV/CISR (2025 release) are StatsCan's newer, more granular indices. CISR adds the resilience dimension which CIMD lacks.
+
+---
+
+## Known Data Gaps
+
+| Gap | Workaround |
+|-----|-----------|
+| Mississauga CT census (city portal blocks access) | Synthetic data calibrated to city averages |
+| Historical weather 87% null (Open-Meteo rate limiting) | Not used in PCA; contextual display only |
+| NRCan flood zones returned empty | `in_flood_zone` = False for all CTs |
+| No active Alectra outages | Columns present, will populate during real event |
+
+---
+
+## Submission Checklist
+
+- [ ] Public URL live (deploy frontend or share Folium HTML)
+- [ ] Data provenance visible in app (source citations on every popup)
+- [ ] All 3 scenarios working (Baseline / Heatwave / Ice Storm)
+- [ ] Demo video / slides updated with real neighbourhood names
+- [ ] `context/source-catalogue.md` up to date ← done ✅
+- [ ] `pipeline/EDA.ipynb` re-run clean top-to-bottom ← pending

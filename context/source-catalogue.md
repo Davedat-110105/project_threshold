@@ -1,224 +1,262 @@
 # Source Catalogue
 
-Authoritative catalogue of every data source Threshold ingests, with status, ontology mapping, and refresh tier.
+Authoritative record of every data source ingested into Threshold, with exact endpoints, status, and how each was fetched.
 
-Scope: **MVP — Alectra service territory across Mississauga, Brampton, and Hamilton.** Additional Alectra communities (Vaughan, Markham, Guelph, Barrie, etc.) added post-MVP.
+**Scope:** Brampton (MVP demo city — 122 Census Tracts in Alectra territory).
+**Status legend:** `planned → fetched → normalized → joined → live-in-app`
 
-Status legend: `not-started → fetched → normalized → joined → live-in-app`.
+---
 
 ## Tier A — Structural (yearly, baked at build time)
 
-### A1 · Census Tract boundaries (StatsCan)
+### A1 · Census Tract Boundaries (StatsCan 2021)
 
 - **Slug:** `statcan-census-tracts-2021`
-- **Entity:** `Community` (geometry, id, name)
-- **Coverage:** Mississauga + Brampton + Hamilton ≈ 400 CTs
-- **Endpoint:** StatsCan Geography boundary files (cartographic). `https://www150.statcan.gc.ca/n1/en/catalogue/92-160-X` (CT polygons in lpr_000a16a_e or 2021 equivalent).
-- **Format:** Shapefile / GeoJSON after conversion with `geopandas`.
-- **Refresh:** Census cycle (~5 years). Next refresh 2027 with 2026 Census release.
-- **License:** Statistics Canada Open License.
-- **Status:** not-started
-- **Notes:** The primary spatial spine. Every other Tier A source spatial-joins to this. Filter to CMAs of Toronto (35535) and Hamilton (35537) at ingest time to drop everything outside scope.
+- **Endpoint:** StatsCan 2021 Census — Digital Boundary File  
+  `https://www12.statcan.gc.ca/census-recensement/2021/geo/sip-pis/boundary-limites/`
+- **Format:** Shapefile → converted to GeoJSON via `geopandas`
+- **Pipeline script:** Loaded inside `pipeline/EDA.ipynb` cell `a1-fetch-boundaries`
+- **Coverage:** 569 CTs — Brampton + Mississauga (CMA 535) + Hamilton (CMA 537), Alectra service area
+- **Output file:** `pipeline/data/master_cts.geojson` (569 CTs, geometry + CTUID + DGUID)
+- **License:** Statistics Canada Open License
+- **Status:** ✅ live-in-app
+- **Notes:** Filtered to `PRUID = 35` (Ontario), CMAs 535 and 537. CTUID is the join key for every other source.
 
-### A2 · 2021 Census demographics by CT (StatsCan)
+---
 
-- **Slug:** `statcan-census-2021-ct-demographics`
-- **Entity:** `Community.demographics` (population, median income, age structure, dwelling age, renter/owner mix, recent-immigrant share)
-- **Endpoint:** StatsCan Census Profile by CT, via web data service or bulk CSV. `https://www150.statcan.gc.ca/n1/en/type/data`
-- **Format:** CSV (wide), reshaped to long form per CT.
-- **Refresh:** Census cycle.
-- **License:** Statistics Canada Open License.
-- **Status:** not-started
-- **Notes:** Source for energy-burden inputs (income × renter share × dwelling age). Drives Theme 3 PS1 directly.
+### A2 · 2021 Census Demographics by CT — Brampton (City ESRI ArcGIS)
 
-### A3 · Canadian Index of Multiple Deprivation (CIMD) by CT
+- **Slug:** `brampton-esri-census2021`
+- **Endpoint:** City of Brampton ArcGIS FeatureServer (Census 2021 by Census Tract)  
+  `https://services3.arcgis.com/rl7ACuZkiFsmDA2g/ArcGIS/rest/services/Census_2021/FeatureServer`
+  - Layer 1 — Population: `CTUID, POPULATION_2021, TOTAL_PRIVATE_DWELLINGS`
+  - Layer 6 — Housing tenure + age: `CTUID, RENTER, TOTAL_PRIV_HH_BY_TENURE_25, FROM1960_OR_BEFORE, FROM1961_TO_1980, TOTAL_PRIV_DWELL_PERIOD_25`
+  - Layer 8 — Income: `CTUID, TOTAL_MED_HH_INC_2020`
+  - Layer 11 — Low income: `CTUID, TOTAL_LOWINC_2020_LIM, TOTAL_PCT_LOWINC_2020_LIM`
+- **Format:** JSON via ArcGIS REST `?f=json&where=1=1&outFields=...`
+- **Pipeline script:** `pipeline/build_map.py` (inline fetch), also `pipeline/EDA.ipynb`
+- **Coverage:** 122 Brampton Census Tracts (complete city coverage)
+- **Columns produced:**
+  - `population` — from `POPULATION_2021`
+  - `median_income` — from `TOTAL_MED_HH_INC_2020` (2020 dollars)
+  - `pct_renters` — computed: `RENTER / TOTAL_PRIV_HH_BY_TENURE_25`
+  - `pct_pre1980` — computed: `(FROM1960_OR_BEFORE + FROM1961_TO_1980) / TOTAL_PRIV_DWELL_PERIOD_25`
+- **Output file:** `pipeline/data/brampton_full.geojson`
+- **License:** City of Brampton Open Data License
+- **Status:** ✅ live-in-app
+- **Notes:** All 57 CT-level census layers are available at this FeatureServer. We use 4. Data is 2021 Canadian Census of Population.
 
-- **Slug:** `statcan-cimd-2021`
-- **Entity:** `Community.vulnerability` (residential instability, economic dependency, ethno-cultural composition, situational vulnerability)
-- **Endpoint:** `https://www150.statcan.gc.ca/n1/en/catalogue/45200001`
-- **Format:** CSV joinable on CT UID.
-- **Refresh:** Census cycle.
-- **License:** Statistics Canada Open License.
-- **Status:** not-started
-- **Notes:** Replaces the retired Toronto Heat Vulnerability Index. CIMD is national, uniform, peer-reviewed, and joins directly on CTUID — the cleanest path to a vulnerability factor.
+---
 
-### A4 · NRCan Flood Hazard
+### A3 · Canadian Index of Social Vulnerability (CISV) — StatsCan 2021
+
+- **Slug:** `statcan-cisv-2021`
+- **Endpoint:** `https://www150.statcan.gc.ca/pub/45-20-0001/2025001/csv/cisv-eng.zip`
+- **Format:** CSV zip — DA-level index scores
+- **Pipeline script:** `pipeline/build_cisr_cisv.py`
+- **Coverage:** National — filtered to Ontario (PRUID=35), CMAs 535+537
+- **DA→CT crosswalk:** `2021_92-151_X.csv` from `https://www12.statcan.gc.ca/census-recensement/2021/geo/aip-pia/attribute-attribs/files-fichiers/2021_92-151_X.zip`
+- **Columns produced (CT-level mean of DA scores):**
+  - `cisv_score` — overall social vulnerability composite
+  - `cisv_dim1` — Dimension 1: Racialized populations & immigration status
+  - `cisv_dim2` — Dimension 2: Income & labour market marginalization
+  - `cisv_dim3` — Dimension 3: Education & Indigenous identity
+  - `cisv_dim4` — Dimension 4: Dwelling conditions (crowding, need of major repairs)
+  - `cisv_quintile` — National quintile (5 = most vulnerable)
+- **Output file:** `pipeline/data/real_cisr_cisv.csv` (1,432 CTs Ontario-wide, null rate ~0.5%)
+- **License:** Statistics Canada Open License
+- **Status:** ✅ live-in-app
+- **Reference:** Burrows et al. (2025). *Canadian Index of Social Vulnerability.* Statistics Canada Cat. No. 45-20-0001.
+
+---
+
+### A4 · Canadian Index of Social Resilience (CISR) — StatsCan 2021
+
+- **Slug:** `statcan-cisr-2021`
+- **Endpoint:** `https://www150.statcan.gc.ca/pub/45-20-0001/2025001/csv/cisr-eng.zip`
+- **Format:** CSV zip — DA-level index scores
+- **Pipeline script:** `pipeline/build_cisr_cisv.py` (same script as CISV)
+- **Coverage:** National — filtered to Ontario (PRUID=35), CMAs 535+537
+- **Columns produced (CT-level mean of DA scores):**
+  - `cisr_score` — overall social resilience composite (**inverted in PCA** — high resilience = lower vulnerability)
+  - `cisr_dim1` — Dimension 1: Education, employment, dwelling quality
+  - `cisr_dim2` — Dimension 2: Homeownership, income stability, working-age share
+  - `cisr_dim3` — Dimension 3: Age diversity & dwelling age
+  - `cisr_quintile` — National quintile (5 = most resilient)
+- **Output file:** `pipeline/data/real_cisr_cisv.csv` (same file as CISV)
+- **License:** Statistics Canada Open License
+- **Status:** ✅ live-in-app
+- **Reference:** Statistics Canada Cat. No. 45-20-0001 (2025).
+
+---
+
+### A5 · Brampton Secondary Plan Area Boundaries (Neighbourhood Names)
+
+- **Slug:** `brampton-esri-secondary-plan-areas`
+- **Endpoint:** City of Brampton — Planning Official Plan FeatureServer  
+  `https://services3.arcgis.com/rl7ACuZkiFsmDA2g/arcgis/rest/services/Planning_Official_Plan/FeatureServer/0`
+- **Format:** GeoJSON via `?f=geojson`
+- **Pipeline script:** `pipeline/build_map.py` — spatial join CT centroid → SPA polygon
+- **Coverage:** 39 named Secondary Plan Areas covering all of Brampton
+- **Columns produced:**
+  - `neighbourhood` — human-readable area name (e.g. "Springdale", "Bramalea", "Brampton Flowertown")
+- **Output file:** `neighbourhood` column in `pipeline/data/brampton_full.geojson`
+- **License:** City of Brampton Open Data License
+- **Status:** ✅ live-in-app
+- **Notes:** Each CT centroid is point-in-polygon joined to its SPA. All 122 CTs matched (no fallback needed).
+
+---
+
+### A6 · NRCan Federal Flood Hazard Zones
 
 - **Slug:** `nrcan-flood-hazard`
-- **Entity:** `Community.flood_exposure` (percent area in mapped flood zone)
-- **Endpoint:** `https://open.canada.ca` — Federal Flood Mapping Framework / Flood Hazard Inventory.
-- **Format:** GeoJSON / Shapefile per province.
-- **Refresh:** Annual or on advisory.
-- **License:** Open Government Licence — Canada.
-- **Status:** not-started
-- **Notes:** Spatial join via `geopandas.overlay`, compute `intersect_area / community_area` per CT.
+- **Endpoint:** `https://maps-cartes.services.geo.ca/server_serveur/rest/services/NRCan/national_flood_hazard_layer_en/MapServer/0/query`
+- **Format:** GeoJSON via ArcGIS REST
+- **Pipeline script:** `pipeline/build_weather.py`
+- **Coverage:** Bounding box `-81.0,42.8,-78.5,44.2` (Alectra territory)
+- **Columns produced:** `in_flood_zone` (boolean)
+- **Output file:** `pipeline/data/weather_ct.csv`
+- **License:** Open Government Licence — Canada
+- **Status:** ⚠️ fetched but returned 0 polygons — all CTs marked `False`
+- **Notes:** Layer returned HTTP 200 but no features for this bounding box. Likely correct (few federal flood zones in this area). Provincial MNRF layers would give more coverage but require a separate request.
 
-### A5 · Hamilton neighbourhoods (Code Red dataset)
+---
 
-- **Slug:** `hamilton-open-neighbourhoods`
-- **Entity:** `Community.municipal_label` (Hamilton-only)
-- **Endpoint:** Hamilton Open Data Portal — Neighbourhoods layer. Search at `https://open.hamilton.ca`.
-- **Format:** GeoJSON.
-- **Refresh:** Rare; on neighbourhood-scheme revision.
-- **License:** Open Government Licence — Hamilton.
-- **Status:** not-started
-- **Notes:** 135 named neighbourhoods, used as a label overlay on the CT-keyed `Community`. Maps to the canonical Code Red equity narrative. Strategic anchor for the demo.
+## Tier B — Seasonal (refresh daily)
 
-### A6 · Mississauga community planning areas
+### B1 · Live Weather — Current Conditions (Open-Meteo)
 
-- **Slug:** `mississauga-open-planning-areas`
-- **Entity:** `Community.municipal_label` (Mississauga-only)
-- **Endpoint:** Mississauga Open Data Portal. `https://data.mississauga.ca`.
-- **Format:** GeoJSON.
-- **Refresh:** Rare.
-- **License:** Open Government Licence — Mississauga.
-- **Status:** not-started
-- **Notes:** No official "neighbourhoods" in Mississauga open data; planning areas are the cleanest label source.
+- **Slug:** `open-meteo-current`
+- **Endpoint:** `https://api.open-meteo.com/v1/forecast`
+- **Format:** JSON (free API, no key required)
+- **Pipeline script:** `pipeline/build_weather.py` — Step 1, batched by 10 CT centroids
+- **Parameters fetched:** `temperature_2m, apparent_temperature, precipitation, wind_speed_10m, wind_gusts_10m, weather_code`
+- **Columns produced:**
+  - `temperature_c` — current air temperature (°C)
+  - `humidex` — apparent temperature / feels-like (°C), used as heat stress proxy
+  - `precipitation_mm` — current precipitation (mm)
+  - `wind_speed_kmh` — current wind speed at 10m
+  - `wind_gusts_kmh` — peak gusts
+  - `weather_code` — WMO code (0=clear, 61=rain, 71=snow, 95=thunderstorm)
+- **Output file:** `pipeline/data/weather_ct.csv` + joined into `pipeline/data/brampton_full.geojson`
+- **License:** Open-Meteo CC-BY 4.0
+- **Status:** ✅ live-in-app (569 CTs, 0 nulls)
+- **Notes:** Grid resolution ~1km. Coordinates are CT polygon centroids (WGS84). Called once per build; refresh by re-running `build_weather.py`.
 
-### A7 · Brampton wards
+---
 
-- **Slug:** `brampton-open-wards`
-- **Entity:** `Community.municipal_label` (Brampton-only)
-- **Endpoint:** Brampton Open Data Portal. `https://geohub.brampton.ca`.
-- **Format:** GeoJSON.
-- **Refresh:** Rare.
-- **License:** Open Government Licence — Brampton.
-- **Status:** not-started
-- **Notes:** Wards used as the label scheme since Brampton lacks a uniform neighbourhood scheme. Less granular than Hamilton but accurate.
+### B2 · Historical Climate Stats 2019–2024 (Open-Meteo Archive)
 
-### A8 · Alectra service area
+- **Slug:** `open-meteo-historical`
+- **Endpoint:** `https://archive-api.open-meteo.com/v1/archive`
+- **Format:** JSON (free API, no key required)
+- **Pipeline script:** `pipeline/build_weather.py` — Step 2, one call per CT
+- **Parameters fetched:** `temperature_2m_max, temperature_2m_min, precipitation_sum, wind_speed_10m_max` — daily, 2019-01-01 to 2024-12-31
+- **Columns produced (annual averages over 6 years):**
+  - `heat_days_per_yr` — days/yr with max temp > 30°C
+  - `hot_days_per_yr` — days/yr with max temp > 25°C
+  - `frost_days_per_yr` — days/yr with min temp < 0°C
+  - `freezing_days_per_yr` — days/yr with max temp < 0°C
+  - `annual_precip_mm` — mean annual total precipitation
+  - `heavy_rain_days_per_yr` — days/yr with precip > 25mm
+  - `max_24h_precip_mm` — highest single-day rainfall on record (2019–2024)
+  - `max_wind_gust_kmh` — peak recorded wind gust (2019–2024)
+- **Output file:** `pipeline/data/weather_ct.csv`
+- **License:** Open-Meteo CC-BY 4.0
+- **Status:** ⚠️ partial — 72/569 CTs populated (API rate-limited during bulk fetch). Not used in PCA scoring.
+- **Notes:** The archive API is free but throttles at ~50–100 requests/min. Re-run `build_weather.py` with increased sleep to fill remaining nulls.
 
-- **Slug:** `alectra-service-area`
-- **Entity:** `Community.served_by_alectra` (boolean) + service-area polygon for map clipping
-- **Endpoint:** ArcGIS Online item — `https://www.arcgis.com/home/item.html?id=8eba357e1b124587884bccb724743c4c`
-- **Format:** GeoJSON via ArcGIS REST `?f=geojson`.
-- **Refresh:** Rare.
-- **License:** Esri Living Atlas item terms.
-- **Status:** not-started
-- **Notes:** Identifies which CTs sit in Alectra territory. Critical for the demo narrative.
+---
 
-## Tier B — Seasonal (refresh daily, server-cached)
+## Tier C — Live (refresh 5–15 min)
 
-### B1 · Esri Living Atlas — environmental justice layers
-
-- **Slug:** `esri-living-atlas-ej-canada`
-- **Entity:** `Community.env_justice` (composite indicator from Living Atlas EJ overlays)
-- **Endpoint:** Per-layer ArcGIS REST FeatureServer URLs to be enumerated from `https://livingatlas.arcgis.com`. Filter by Canada coverage.
-- **Format:** GeoJSON via `?f=geojson`.
-- **Refresh:** Daily pull, monthly source updates.
-- **License:** Esri Living Atlas terms.
-- **Status:** not-started
-- **Notes:** Use student ArcGIS Online account for highest-resolution access.
-
-### B2 · Esri Canada Climate Hub — heat vulnerability layers
-
-- **Slug:** `esri-canada-climate-heat-vuln`
-- **Entity:** `Community.heat_vulnerability`
-- **Endpoint:** `https://climate.esri.ca/` — specific layer URLs to be enumerated by browser exploration (page is JS-rendered, see sponsor-research.md).
-- **Format:** GeoJSON / REST.
-- **Refresh:** Daily.
-- **License:** Esri Canada Climate Hub terms.
-- **Status:** not-started
-
-### B3 · Cooling and warming centres — Mississauga
-
-- **Slug:** `mississauga-cooling-centres`
-- **Entity:** `Shelter` (location, capacity, open_status)
-- **Endpoint:** Mississauga Open Data Portal — cooling/warming centre layer.
-- **Format:** GeoJSON / CSV.
-- **Refresh:** Daily.
-- **License:** OGL Mississauga.
-- **Status:** not-started
-
-### B4 · Cooling and warming centres — Brampton
-
-- **Slug:** `brampton-cooling-centres`
-- **Entity:** `Shelter`
-- **Endpoint:** Brampton Open Data Portal.
-- **Format:** GeoJSON / CSV.
-- **Refresh:** Daily.
-- **License:** OGL Brampton.
-- **Status:** not-started
-
-### B5 · Cooling and warming centres — Hamilton
-
-- **Slug:** `hamilton-cooling-centres`
-- **Entity:** `Shelter`
-- **Endpoint:** Hamilton Open Data Portal — community centres + library locations as warming/cooling proxies (Hamilton's centre list is published seasonally).
-- **Format:** GeoJSON / CSV.
-- **Refresh:** Daily.
-- **License:** OGL Hamilton.
-- **Status:** not-started
-
-### B6 · Air-quality monitoring stations (Ontario MECP / Environment Canada)
-
-- **Slug:** `envcan-aqhi-stations`
-- **Entity:** `PollutionSource` (station type) and overlay layer for current AQHI
-- **Endpoint:** Environment Canada Meteorological Service AQHI data. Station metadata at `https://api.weather.gc.ca/collections/aqhi-observations-realtime`.
-- **Format:** OGC API Features / GeoJSON.
-- **Refresh:** Hourly station data, daily metadata.
-- **License:** Environment Canada Open Government Licence.
-- **Status:** not-started
-- **Notes:** Stretch — addresses Theme 3 PS3.
-
-## Tier C — Live (refresh 5–15 min, in-memory cache)
-
-### C1 · 🔓 Alectra Outage feed — customer outage polygons
+### C1 · Alectra Live Power Outage Feed
 
 - **Slug:** `alectra-outages-live`
-- **Entity:** `Outage` (polygon, customers_affected, cause, started_at, estimated_restoration) → spatial join to overlapping `Community`
-- **Endpoint:** `https://services8.arcgis.com/wNDmObY7QplwZD9m/ArcGIS/rest/services/Outage_Details/FeatureServer` — **specific layer ID TBD.** Layer 0 confirmed to be internal "Barriers" / trace points. Enumerate `/layers?f=json` to find the customer outage areas layer.
-- **Format:** GeoJSON via `?f=geojson&where=1=1&outFields=*`.
-- **Refresh:** 5 min poll.
-- **License:** ArcGIS Hub public item; usage permitted under Esri Canada apps terms.
-- **Status:** not-started
-- **Notes:** 🔓 **The unlock.** Sponsor-aligned (Alectra data on Esri infrastructure). Build historical archive by polling across the hackathon window — store every poll's snapshot to Postgres with `polled_at` timestamp.
+- **Endpoint:** Alectra Utilities — ArcGIS FeatureServer (public)  
+  `https://services8.arcgis.com/wNDmObY7QplwZD9m/ArcGIS/rest/services/Outage_Details/FeatureServer/7`
+  - Layer 7 = "Outage Area" polygons (confirmed by enumerating layers endpoint)
+- **Format:** GeoJSON via `?f=geojson&where=1=1&outFields=*`
+- **Pipeline script:** `pipeline/EDA.ipynb` cell `c1-fetch-outages`
+- **Spatial join:** outage polygons → CT boundaries via `gpd.sjoin(cts, outages, predicate="intersects")`
+- **Columns produced:**
+  - `active_outages` — count of outage polygons overlapping this CT
+  - `customers_affected` — sum of `CUSTOMERS_AFFECTED` from overlapping outage features
+- **Output:** Joined directly into `master_cts.geojson` + `brampton_full.geojson`
+- **License:** Esri/Alectra public ArcGIS Hub — public access permitted
+- **Status:** ✅ live-in-app (0 active outages at time of last run)
+- **Notes:** Currently 0 active outages — columns present but zero-valued. During an actual outage event, these will populate automatically on next pipeline run.
 
-### C2 · Environment Canada GeoMet — current weather
+---
 
-- **Slug:** `envcan-geomet-current`
-- **Entity:** `WeatherCell` (temperature, humidex, wind, advisory_flags) → spatial join to overlapping `Community`
-- **Endpoint:** `https://api.weather.gc.ca/collections/` — observations and forecasts. OGC API Features.
-- **Format:** GeoJSON.
-- **Refresh:** 10 min.
-- **License:** Environment Canada Open Government Licence.
-- **Status:** not-started
-- **Notes:** Source for the live overlay and for the heat-stress model's runtime input.
+## Community Facilities
 
-### C3 · Environment Canada — active weather advisories
+### F1 · Brampton Recreation Centres
 
-- **Slug:** `envcan-advisories`
-- **Entity:** `Advisory` (type, severity, area, valid_from, valid_to) → spatial join to `Community`
-- **Endpoint:** Environment Canada MSC Datamart / GeoMet alerts.
-- **Format:** GeoJSON / CAP XML.
-- **Refresh:** 5 min.
-- **License:** OGL — Canada.
-- **Status:** not-started
+- **Slug:** `brampton-esri-recreation`
+- **Endpoint:** `https://services3.arcgis.com/rl7ACuZkiFsmDA2g/arcgis/rest/services/RecreationFacilities/FeatureServer/0`
+- **Format:** GeoJSON via `?f=geojson`
+- **Pipeline script:** `pipeline/build_map.py`
+- **Coverage:** 38 active recreation facilities (community centres, arenas, sports complexes)
+- **Role in app:** Labelled as "Cooling & Warming Centres" — these are Brampton's designated emergency shelters during heatwaves and ice storms
+- **Fields used:** `FACILITY_NAME, ADDRESS, TYPE, STATUS, WEBSITE`
+- **Output file:** `pipeline/data/brampton_facilities.geojson`
+- **License:** City of Brampton Open Data License
+- **Status:** ✅ live-in-app
 
-### C4 · AQHI live readings
+---
 
-- **Slug:** `envcan-aqhi-realtime`
-- **Entity:** Updates per-station current AQHI value; spatial-interpolated to `Community`
-- **Endpoint:** `https://api.weather.gc.ca/collections/aqhi-observations-realtime/items`
-- **Format:** GeoJSON.
-- **Refresh:** Hourly.
-- **License:** OGL — Canada.
-- **Status:** not-started
-- **Notes:** Stretch — Theme 3 PS3.
+### F2 · Brampton Libraries
 
-## Ingestion Build Order (first vertical slice)
+- **Slug:** `brampton-esri-libraries`
+- **Endpoint:** `https://services3.arcgis.com/rl7ACuZkiFsmDA2g/arcgis/rest/services/Libraries/FeatureServer/0`
+- **Format:** GeoJSON via `?f=geojson`
+- **Pipeline script:** `pipeline/build_map.py`
+- **Coverage:** 7 library branches (Brampton Library system)
+- **Role in app:** Labelled as "Cooling Centres" — air-conditioned public spaces open during heat events
+- **Fields used:** `FACILITY_NAME, ADDRESS, TYPE, STATUS`
+- **Output file:** `pipeline/data/brampton_facilities.geojson`
+- **License:** City of Brampton Open Data License
+- **Status:** ✅ live-in-app
 
-The first end-to-end slice ingests three sources and produces a coloured map. Do not add a fourth source until this slice is green.
+---
 
-1. **A1** Census Tract boundaries — write `frontend/public/data/communities.geojson`.
-2. **A2** Census demographics — join into the same GeoJSON's `properties`.
-3. **A8** Alectra service area — flag CTs as `served_by_alectra` and clip view.
-4. Render the choropleth on a single dummy score derived from A2 fields.
-5. Only once the map renders correctly: add **A3** CIMD, then **C1** outages, then **C2** weather.
+## Computed Outputs
 
-## Open data-availability questions
+### Score · Threshold Vulnerability Score
 
-- **Customer outage layer ID on Alectra FeatureServer** — must be confirmed by enumerating `Outage_Details/FeatureServer/layers?f=json`. Block on this before estimating Tier C effort.
-- **Hamilton open data — warming/cooling centres** — Hamilton publishes seasonal lists but not always as a layer. May need to scrape the City's seasonal advisory page.
-- **Esri Climate Hub layer enumeration** — page is JS-rendered, requires manual browser exploration to enumerate REST endpoints.
-- **GeoMet OGC API collection names** — Environment Canada renamed some collections recently; confirm exact names at `https://api.weather.gc.ca/collections` before wiring.
+- **Slug:** `threshold-score-pca`
+- **Method:** Principal Component Analysis (PCA), PC1 rescaled 0–100
+- **Library:** `sklearn.decomposition.PCA` + `sklearn.preprocessing.StandardScaler`
+- **Input factors (all standardized before PCA):**
+
+  | Factor | Direction | Weight (loading) |
+  |--------|-----------|-----------------|
+  | `cisv_score` | ↑ vulnerable | 0.537 |
+  | `cisv_dim4` (dwelling conditions) | ↑ vulnerable | 0.439 |
+  | `cisv_dim2` (income/labour) | ↑ vulnerable | 0.368 |
+  | `cisv_dim3` (education) | ↑ vulnerable | 0.307 |
+  | `cisv_dim1` (racialized/immigration) | ↑ vulnerable | 0.083 |
+  | `pct_pre1980` | ↑ vulnerable | 0.054 |
+  | `pct_renters` | ↑ vulnerable | 0.053 |
+  | `cisr_score` | **inverted** (high = resilient) | −0.054 |
+  | `median_income` | **inverted** (high = less vulnerable) | −0.002 |
+  | `humidex` | ↑ vulnerable | context-dependent |
+
+- **PC1 explained variance:** ~33% of total variation across Brampton CTs
+- **Rescaling:** `score = (PC1 − min) / (max − min) × 100`
+- **Interpretation:** Relative ranking within Brampton. Score 100 = highest vulnerability CT in the city. Score 0 = lowest.
+- **Risk buckets:** Low (0–25) · Moderate (25–50) · High (50–75) · Critical (75–100)
+- **Output column:** `threshold_score` in `pipeline/data/brampton_full.geojson`
+- **Loadings file:** `pipeline/data/loadings.csv`
+
+---
+
+## Data Gaps & Known Issues
+
+| Gap | Impact | Status |
+|-----|--------|--------|
+| Historical weather 87% null | `heat_days_per_yr` etc. mostly missing — not used in PCA | Open-Meteo rate limiting |
+| NRCan flood zones empty | `in_flood_zone` all False | API returned no features for study area |
+| No Mississauga CT census | Mississauga CTs use synthetic demographics | City portal blocks programmatic access |
+| No Hamilton CT census for 80/129 CTs | Partial real data; rest synthetic | Hamilton 2016 data, partial CT coverage |
