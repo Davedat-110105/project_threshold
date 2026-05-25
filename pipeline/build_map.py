@@ -154,7 +154,7 @@ for _, row in cts.iterrows():
         <tr style="background:#f5f5f5"><td colspan="2" style="padding:4px 6px; font-weight:bold; color:#555; font-size:10px;">
           🔗 Data Sources
         </td></tr>
-        <tr><td colspan="2" style="padding:3px 6px; color:#888; font-size:10px;">{row['data_sources']}</td></tr>
+        <tr><td colspan="2" style="padding:3px 6px; color:#888; font-size:10px;">StatsCan CISV/CISR 2021 · Brampton ESRI Census 2021 · Open-Meteo · Alectra Live</td></tr>
       </table>
     </div>
     """
