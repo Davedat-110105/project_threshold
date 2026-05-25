@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# VS Code
+.vscode/
+
+# Data — large downloads (committed CSVs are fine, shapefiles/geojson are big)
+pipeline/data/ct_boundaries/
+pipeline/data/census_profile/
+pipeline/data/cimd/
