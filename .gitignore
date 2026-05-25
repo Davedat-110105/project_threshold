@@ -19,3 +19,4 @@ pipeline/data/cisr/
 pipeline/data/cisv/
 pipeline/data/geo_attr/
 pipeline/data/*.zip
+pipeline/data/
