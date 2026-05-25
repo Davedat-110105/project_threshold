@@ -11,7 +11,11 @@ __pycache__/
 # VS Code
 .vscode/
 
-# Data — large downloads (committed CSVs are fine, shapefiles/geojson are big)
+# Data — large raw downloads (processed outputs are committed)
 pipeline/data/ct_boundaries/
 pipeline/data/census_profile/
 pipeline/data/cimd/
+pipeline/data/cisr/
+pipeline/data/cisv/
+pipeline/data/geo_attr/
+pipeline/data/*.zip
