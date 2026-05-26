@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context';
-import { getTier, TIER_COLORS, scoreFor, formatIncome, formatPct, weatherLabel } from '../utils';
+import { getTier, TIER_COLORS, TIER_LABELS, scoreFor, formatIncome, formatPct, weatherLabel } from '../utils';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   const [open, setOpen] = useState(true);
@@ -63,7 +63,7 @@ export default function RightPanel() {
           </div>
           <div className="text-right">
             <div className="text-2xl font-bold font-mono" style={{ color }}>{score.toFixed(0)}</div>
-            <div className="text-xs font-medium" style={{ color }}>{tier.charAt(0).toUpperCase() + tier.slice(1)} Risk</div>
+            <div className="text-xs font-medium" style={{ color }}>{TIER_LABELS[tier]} Risk</div>
           </div>
         </div>
         <div className="mt-2 flex gap-1 flex-wrap">

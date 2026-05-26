@@ -1,13 +1,20 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import { useApp } from '../context';
-import { getTier, TIER_COLORS, scoreFor } from '../utils';
+import { getTier, TIER_COLORS, TIER_LABELS, scoreFor } from '../utils';
 
 const SHELTER_ICON = L.divIcon({
   html: '🏠',
   className: 'text-sm leading-none',
   iconSize: [20, 20],
   iconAnchor: [10, 10],
+});
+
+const OUTAGE_ICON = L.divIcon({
+  html: '<div style="width:10px;height:10px;border-radius:50%;background:#ef4444;border:2px solid #fff"></div>',
+  className: '',
+  iconSize: [10, 10],
+  iconAnchor: [5, 5],
 });
 
 export default function MapPanel() {
@@ -75,7 +82,7 @@ export default function MapPanel() {
           const score = scoreFor(t, scenario);
           const tier = getTier(score);
           lyr.bindTooltip(
-            `<strong style="color:#F5F5F5">${t.neighbourhood}</strong><br/><span style="color:#9CA3AF">${score.toFixed(1)} · ${tier.charAt(0).toUpperCase() + tier.slice(1)}</span>`,
+            `<strong style="color:#F5F5F5">${t.neighbourhood}</strong><br/><span style="color:#9CA3AF">${score.toFixed(1)} · ${TIER_LABELS[tier]}</span>`,
             { sticky: true }
           ).openTooltip();
         });
@@ -107,13 +114,7 @@ export default function MapPanel() {
 
     if (showOutages) {
       tracts.filter(t => t.active_outages > 0).forEach(t => {
-        const icon = L.divIcon({
-          html: '<div style="width:10px;height:10px;border-radius:50%;background:#ef4444;border:2px solid #fff"></div>',
-          className: '',
-          iconSize: [10, 10],
-          iconAnchor: [5, 5],
-        });
-        L.marker([t.lat, t.lng], { icon })
+        L.marker([t.lat, t.lng], { icon: OUTAGE_ICON })
           .bindTooltip(`Outage · ${t.customers_affected} customers`)
           .addTo(markersRef.current!);
       });

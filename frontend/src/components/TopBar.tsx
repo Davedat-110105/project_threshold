@@ -3,6 +3,7 @@ import { useApp } from '../context';
 import type { Scenario, View } from '../types';
 
 const SCENARIOS: Scenario[] = ['Baseline', 'Heatwave', 'Ice Storm'];
+const VIEWS: View[] = ['Map', 'Triage'];
 
 export default function TopBar() {
   const { view, setView, scenario, setScenario } = useApp();
@@ -15,7 +16,7 @@ export default function TopBar() {
       </div>
 
       <div className="flex items-center gap-1">
-        {(['Map', 'Triage'] as View[]).map(v => (
+        {VIEWS.map(v => (
           <button key={v} onClick={() => setView(v)}
             className={`px-3 py-1 rounded text-sm font-medium transition-colors ${view === v ? 'bg-accent text-white' : 'text-muted hover:text-primary hover:bg-hover'}`}>
             {v}

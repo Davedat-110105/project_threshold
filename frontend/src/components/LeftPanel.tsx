@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context';
-import { getTier, TIER_COLORS, scoreFor } from '../utils';
+import { getTier, TIER_COLORS, TIER_LABELS, scoreFor } from '../utils';
 
 const CITIES = [
   { name: 'Brampton', on: true },
@@ -58,7 +58,7 @@ export default function LeftPanel() {
               </span>
               <div className="flex-1 min-w-0">
                 <div className="text-xs text-primary truncate">{t.neighbourhood}</div>
-                <div className="text-xs font-medium" style={{ color }}>{tier.charAt(0).toUpperCase() + tier.slice(1)}</div>
+                <div className="text-xs font-medium" style={{ color }}>{TIER_LABELS[tier]}</div>
               </div>
               {t.active_outages > 0 && <span className="w-2 h-2 rounded-full bg-critical animate-pulse shrink-0" />}
             </button>

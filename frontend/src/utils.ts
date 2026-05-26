@@ -1,9 +1,16 @@
-import type { Scenario, Tier } from './types';
+import type { Scenario, Tier, Tract } from './types';
 
-export function scoreFor(tract: { threshold_score_baseline: number; threshold_score_heatwave: number; threshold_score_icestorm: number }, scenario: Scenario): number {
-  if (scenario === 'Heatwave') return tract.threshold_score_heatwave;
-  if (scenario === 'Ice Storm') return tract.threshold_score_icestorm;
-  return tract.threshold_score_baseline;
+type ScoredTract = Pick<Tract, 'threshold_score_baseline' | 'threshold_score_heatwave' | 'threshold_score_icestorm'>;
+
+export function scoreFor(tract: ScoredTract, scenario: Scenario): number {
+  switch (scenario) {
+    case 'Heatwave':
+      return tract.threshold_score_heatwave;
+    case 'Ice Storm':
+      return tract.threshold_score_icestorm;
+    default:
+      return tract.threshold_score_baseline;
+  }
 }
 
 export function getTier(score: number): Tier {
