@@ -1,5 +1,32 @@
 import React from 'react';
+import { AppProvider, useApp } from './context';
+import TopBar from './components/TopBar';
+import LeftPanel from './components/LeftPanel';
+import MapPanel from './components/MapPanel';
+import RightPanel from './components/RightPanel';
+import TriageView from './components/TriageView';
+
+function Shell() {
+  const { view, loading, error } = useApp();
+  if (loading) return <div className="flex-1 flex items-center justify-center text-muted">Loading data…</div>;
+  if (error) return <div className="flex-1 flex items-center justify-center text-critical">Error: {error}</div>;
+  if (view === 'Triage') return <TriageView />;
+  return (
+    <div className="flex flex-1 overflow-hidden">
+      <LeftPanel />
+      <MapPanel />
+      <RightPanel />
+    </div>
+  );
+}
 
 export default function App() {
-  return <div style={{ color: '#F5F5F5', background: '#0D0D0D', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&#9889; Project Threshold — Loading…</div>;
+  return (
+    <AppProvider>
+      <div className="flex flex-col h-screen bg-base text-primary">
+        <TopBar />
+        <Shell />
+      </div>
+    </AppProvider>
+  );
 }
