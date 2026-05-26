@@ -10,9 +10,19 @@ interface CommunitySummary {
   pct_pre1980: number | null;
   pct_low_income: number | null;
   cisv_score: number | null;
+  cisv_dim1: number | null;
+  cisv_dim2: number | null;
+  cisv_dim3: number | null;
+  cisv_dim4: number | null;
+  cisv_quintile: number | null;
   cisr_score: number | null;
+  cisr_quintile: number | null;
   humidex: number | null;
   temperature_c: number | null;
+  precipitation_mm: number | null;
+  wind_speed_kmh: number | null;
+  wind_gusts_kmh: number | null;
+  weather_code: number | null;
   active_outages: number;
   customers_affected: number;
   threshold_score_baseline: number | null;
@@ -36,7 +46,7 @@ interface Envelope<T> {
 
 function centroid(geometry: CommunityFeature['geometry']): [number, number] {
   if (!geometry) return [43.73, -79.76];
-  const ring = geometry.type === 'Polygon' ? geometry.coordinates[0] : geometry.coordinates[0][0];
+  const ring = (geometry.type === 'Polygon' ? geometry.coordinates[0] : geometry.coordinates[0][0]) as number[][];
   const lat = ring.reduce((s, c) => s + c[1], 0) / ring.length;
   const lng = ring.reduce((s, c) => s + c[0], 0) / ring.length;
   return [lat, lng];
@@ -46,10 +56,16 @@ function num(v: number | null | undefined, fallback = 0): number {
   return v == null || Number.isNaN(v) ? fallback : v;
 }
 
+async function fetchJson<T>(url: string): Promise<T> {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`${url} → ${r.status} ${r.statusText}`);
+  return r.json() as Promise<T>;
+}
+
 export async function loadData(): Promise<{ tracts: Tract[]; facilities: Facility[] }> {
   const [commRes, facilRes] = await Promise.all([
-    fetch('/api/communities/features').then(r => r.json()) as Promise<Envelope<{ type: string; features: CommunityFeature[] }>>,
-    fetch('/api/facilities').then(r => r.json()) as Promise<Envelope<{ type: string; features: { geometry: { coordinates: number[] }; properties: Record<string, string> }[] }>>,
+    fetchJson<Envelope<{ type: string; features: CommunityFeature[] }>>('/api/communities/features'),
+    fetchJson<Envelope<{ type: string; features: { geometry: { coordinates: number[] }; properties: Record<string, string> }[] }>>('/api/facilities'),
   ]);
 
   const facilities: Facility[] = (facilRes.data?.features ?? []).map(f => ({
@@ -70,26 +86,26 @@ export async function loadData(): Promise<{ tracts: Tract[]; facilities: Facilit
       neighbourhood: p.neighbourhood || p.ctuid,
       lat,
       lng,
-      geometry: f.geometry as Tract['geometry'],
+      geometry: f.geometry as unknown as Tract['geometry'],
       population: num(p.population),
       median_income: num(p.median_income),
       pct_renters: num(p.pct_renters),
       pct_pre1980: num(p.pct_pre1980),
       pct_low_income: Math.min(num(p.pct_low_income), 1),
       cisv_score: num(p.cisv_score),
-      cisv_dim1: 0,
-      cisv_dim2: 0,
-      cisv_dim3: 0,
-      cisv_dim4: 0,
-      cisv_quintile: 0,
+      cisv_dim1: num(p.cisv_dim1),
+      cisv_dim2: num(p.cisv_dim2),
+      cisv_dim3: num(p.cisv_dim3),
+      cisv_dim4: num(p.cisv_dim4),
+      cisv_quintile: num(p.cisv_quintile),
       cisr_score: num(p.cisr_score),
-      cisr_quintile: 0,
+      cisr_quintile: num(p.cisr_quintile),
       temperature_c: num(p.temperature_c, 20),
       humidex: num(p.humidex, 20),
-      precipitation_mm: 0,
-      wind_speed_kmh: 0,
-      wind_gusts_kmh: 0,
-      weather_code: 0,
+      precipitation_mm: num(p.precipitation_mm),
+      wind_speed_kmh: num(p.wind_speed_kmh),
+      wind_gusts_kmh: num(p.wind_gusts_kmh),
+      weather_code: num(p.weather_code),
       active_outages: num(p.active_outages),
       customers_affected: num(p.customers_affected),
       threshold_score_baseline: num(p.threshold_score_baseline),

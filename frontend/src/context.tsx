@@ -2,6 +2,8 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { Facility, Scenario, Tract, View } from './types';
 import { loadData } from './dataLoader';
 
+export type Theme = 'dark' | 'mono';
+
 interface AppState {
   tracts: Tract[];
   facilities: Facility[];
@@ -10,9 +12,11 @@ interface AppState {
   selected: Tract | null;
   scenario: Scenario;
   view: View;
+  theme: Theme;
   setSelected: (t: Tract | null) => void;
   setScenario: (s: Scenario) => void;
   setView: (v: View) => void;
+  setTheme: (t: Theme) => void;
 }
 
 const Ctx = createContext<AppState | null>(null);
@@ -25,6 +29,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [selected, setSelected] = useState<Tract | null>(null);
   const [scenario, setScenario] = useState<Scenario>('Baseline');
   const [view, setView] = useState<View>('Map');
+  const [theme, setTheme] = useState<Theme>('dark');
 
   useEffect(() => {
     loadData()
@@ -34,7 +39,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <Ctx.Provider value={{ tracts, facilities, loading, error, selected, scenario, view, setSelected, setScenario, setView }}>
+    <Ctx.Provider value={{ tracts, facilities, loading, error, selected, scenario, view, theme, setSelected, setScenario, setView, setTheme }}>
       {children}
     </Ctx.Provider>
   );

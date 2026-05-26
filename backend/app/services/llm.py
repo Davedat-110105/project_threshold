@@ -12,7 +12,9 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-import httpx
+from pydantic import BaseModel, Field
+from pydantic_ai import Agent
+from pydantic_ai.models.google import GeminiModel
 
 from ..config import Settings
 from ..models.briefing import BriefingResponse
@@ -33,6 +35,36 @@ from .scoring import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class _StructuredBriefing(BaseModel):
+    snapshot: str = Field(
+        description=(
+            "Paragraph 1: Threshold Score, risk tier, population. "
+            "Name the top 2 vulnerability drivers from the data table."
+        )
+    )
+    scenario_risk: str = Field(
+        description=(
+            "Paragraph 2: What this specific scenario means for this neighbourhood. "
+            "Be concrete — use exact numbers from the data table only."
+        )
+    )
+    action: str = Field(
+        description=(
+            "Paragraph 3: One specific, immediately actionable recommendation. "
+            "Name the actor (City / Alectra / community org) and frame the impact using data."
+        )
+    )
+
+
+class _StructuredPlanSummary(BaseModel):
+    summary: str = Field(
+        description=(
+            "4-6 sentence executive summary. Lead with CT count and population at risk. "
+            "Name the top 2-3 neighbourhoods by name. End with the single highest-leverage action."
+        )
+    )
 
 
 @dataclass
@@ -99,18 +131,41 @@ def inputs_for(rec: CommunityRecord, scenario: Scenario) -> BriefingInputs:
 
 
 class BriefingService:
-    def __init__(self, settings: Settings, client: httpx.AsyncClient | None = None) -> None:
+    """Orchestrates LLM briefings via pydantic-ai with deterministic fallback.
+
+    When GEMINI_API_KEY is set, uses a pydantic-ai Agent with structured output
+    (guaranteed JSON schema) backed by Gemini. Falls back to deterministic prose
+    when the key is absent or the model call fails — the product axiom holds
+    either way.
+    """
+
+    def __init__(self, settings: Settings, client: object = None) -> None:
+        # client parameter kept for API compatibility with main.py lifespan;
+        # pydantic-ai manages its own HTTP connections.
         self._settings = settings
-        self._client = client
-        self._owns_client = client is None
+        self._briefing_agent: Agent | None = None
+        self._plan_agent: Agent | None = None
+        if settings.gemini_api_key:
+            _model = GeminiModel(settings.gemini_model, api_key=settings.gemini_api_key)
+            self._briefing_agent = Agent(
+                _model,
+                output_type=_StructuredBriefing,
+                model_settings={"temperature": 0.2},
+            )
+            self._plan_agent = Agent(
+                _model,
+                output_type=_StructuredPlanSummary,
+                model_settings={"temperature": 0.2},
+            )
 
     async def brief(self, rec: CommunityRecord, scenario: Scenario) -> BriefingResponse:
         inp = inputs_for(rec, scenario)
-        if not self._settings.gemini_api_key:
+        if self._briefing_agent is None:
             return self._fallback(inp)
-        prose = await self._call_gemini(inp)
-        if prose is None:
+        structured = await self._call_briefing_agent(inp)
+        if structured is None:
             return self._fallback(inp)
+        prose = "\n\n".join([structured.snapshot, structured.scenario_risk, structured.action])
         return BriefingResponse(
             ctuid=inp.ctuid,
             scenario=inp.scenario,
@@ -121,39 +176,14 @@ class BriefingService:
             used_llm=True,
         )
 
-    async def _call_gemini(self, inp: BriefingInputs) -> str | None:
-        endpoint = (
-            f"https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{self._settings.gemini_model}:generateContent"
-        )
-        prompt = _build_prompt(inp)
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.2, "maxOutputTokens": 400},
-        }
+    async def _call_briefing_agent(self, inp: BriefingInputs) -> _StructuredBriefing | None:
+        assert self._briefing_agent is not None
         try:
-            client = await self._get_client()
-            resp = await client.post(
-                endpoint,
-                params={"key": self._settings.gemini_api_key},
-                json=payload,
-                timeout=self._settings.gemini_timeout_seconds,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-        except (httpx.HTTPError, ValueError) as exc:
-            logger.warning("Gemini briefing failed: %s — falling back.", exc)
+            result = await self._briefing_agent.run(_build_prompt(inp))
+            return result.output
+        except Exception as exc:
+            logger.warning("Gemini briefing agent failed: %s — falling back.", exc)
             return None
-        try:
-            return data["candidates"][0]["content"]["parts"][0]["text"].strip()
-        except (KeyError, IndexError, TypeError):
-            logger.warning("Gemini returned unexpected payload shape — falling back.")
-            return None
-
-    async def _get_client(self) -> httpx.AsyncClient:
-        if self._client is None:
-            self._client = httpx.AsyncClient()
-        return self._client
 
     async def extreme_plan_summary(
         self,
@@ -169,14 +199,14 @@ class BriefingService:
         when the LLM is unavailable so the response always carries prose
         grounded in the same numbers the rules surfaced.
         """
-        if not self._settings.gemini_api_key:
+        if self._plan_agent is None:
             return _deterministic_extreme_summary(scenario, audience, totals, selected, actions), False
-        prose = await self._call_gemini_for_plan(scenario, audience, totals, selected, actions)
+        prose = await self._call_plan_agent(scenario, audience, totals, selected, actions)
         if prose is None:
             return _deterministic_extreme_summary(scenario, audience, totals, selected, actions), False
         return prose, True
 
-    async def _call_gemini_for_plan(
+    async def _call_plan_agent(
         self,
         scenario: ExtremeScenario,
         audience: Audience,
@@ -184,38 +214,18 @@ class BriefingService:
         selected: list[SelectedCommunity],
         actions: list[PriorityAction],
     ) -> str | None:
-        endpoint = (
-            f"https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{self._settings.gemini_model}:generateContent"
-        )
-        prompt = _build_extreme_prompt(scenario, audience, totals, selected, actions)
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.2, "maxOutputTokens": 500},
-        }
+        assert self._plan_agent is not None
         try:
-            client = await self._get_client()
-            resp = await client.post(
-                endpoint,
-                params={"key": self._settings.gemini_api_key},
-                json=payload,
-                timeout=self._settings.gemini_timeout_seconds,
+            result = await self._plan_agent.run(
+                _build_extreme_prompt(scenario, audience, totals, selected, actions)
             )
-            resp.raise_for_status()
-            data = resp.json()
-        except (httpx.HTTPError, ValueError) as exc:
-            logger.warning("Gemini extreme-plan summary failed: %s — falling back.", exc)
-            return None
-        try:
-            return data["candidates"][0]["content"]["parts"][0]["text"].strip()
-        except (KeyError, IndexError, TypeError):
-            logger.warning("Gemini extreme-plan returned unexpected shape — falling back.")
+            return result.output.summary
+        except Exception as exc:
+            logger.warning("Gemini extreme-plan agent failed: %s — falling back.", exc)
             return None
 
     async def aclose(self) -> None:
-        if self._owns_client and self._client is not None:
-            await self._client.aclose()
-            self._client = None
+        pass  # pydantic-ai manages its own HTTP connections
 
     @staticmethod
     def _fallback(inp: BriefingInputs) -> BriefingResponse:
@@ -255,18 +265,33 @@ def _build_prompt(inp: BriefingInputs) -> str:
         f"- {name}: {('—' if value is None else value)}  ({unit})"
         for name, value, unit in rows
     )
+    energy_pct = (
+        f"{(2400 / inp.median_income * 100):.0f}%"
+        if inp.median_income and inp.median_income > 0 else "unknown"
+    )
     return (
-        "You are Threshold, a civic-data briefing engine. Write a 4–6 sentence "
-        "operational briefing for an emergency manager about Census Tract "
-        f"{inp.ctuid} (neighbourhood: {inp.neighbourhood}) under the "
+        "You are Threshold, a civic emergency-intelligence briefing engine. "
+        "Write a THREE-PARAGRAPH operational briefing for an emergency manager "
+        f"about {inp.neighbourhood} (Census Tract {inp.ctuid}) under the "
         f"{SCENARIO_LABELS[inp.scenario]} scenario.\n\n"
+        "PARAGRAPH STRUCTURE — map to the three output fields:\n"
+        "• snapshot: State the Threshold Score, risk tier, and population. "
+        "Name the top 2 vulnerability drivers from the data table.\n"
+        "• scenario_risk: Explain what the "
+        f"{SCENARIO_LABELS[inp.scenario]} scenario specifically means for this "
+        "neighbourhood given its exact factor values. Be concrete — use numbers.\n"
+        "• action: Give one specific, immediately actionable recommendation with "
+        "a clear actor (City / Alectra / community org) and a plausible impact "
+        "framing grounded in the data.\n\n"
         "STRICT RULES:\n"
-        "1. You may only reference the numbers in the input table below. Do not "
-        "invent, round to different precision, or import other statistics.\n"
-        "2. Do not output disclaimers or sources — the UI handles citations.\n"
-        "3. Lead with the score and tier. Then call out the 2–3 factors that "
-        "most explain the score. End with one operational implication.\n\n"
-        f"Scenario context: {SCENARIO_DESCRIPTIONS[inp.scenario]}\n\n"
+        "1. Use ONLY numbers from the INPUT TABLE below. Do not invent, estimate, "
+        "or reference any figure not listed.\n"
+        "2. No disclaimers, caveats, or source citations — the UI handles that.\n"
+        "3. Each paragraph is one output field — three fields total.\n\n"
+        f"Scenario: {SCENARIO_LABELS[inp.scenario]}\n"
+        f"Logic: {SCENARIO_DESCRIPTIONS[inp.scenario]}\n"
+        f"Estimated energy cost as % of median income: {energy_pct} "
+        "(derived from $2,400/yr avg hydro cost — already in the table)\n\n"
         f"INPUT TABLE:\n{table}\n"
     )
 
@@ -416,7 +441,7 @@ def _deterministic_extreme_summary(
             f"Highest-leverage action: \"{lead.action}\" — targets {len(lead.target_ctuids)} CT(s) "
             f"reaching {lead.affected_population:,} residents.{cost_txt}"
         )
-        if totals.est_cost_cad > 0:
+        if totals.est_cost_cad is not None and totals.est_cost_cad > 0:
             parts.append(f"Total estimated mobilisation cost across all actions: CAD {totals.est_cost_cad:,.0f}.")
     else:
         parts.append("No rule-based priority actions matched the selection — review the per-CT recommendation cards instead.")

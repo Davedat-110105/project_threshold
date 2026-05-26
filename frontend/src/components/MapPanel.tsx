@@ -1,17 +1,25 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
+import { Building2, RadioTower } from 'lucide-react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { useApp } from '../context';
 import { getTier, TIER_COLORS, TIER_LABELS, scoreFor } from '../utils';
 
+const shelterHtml = `<div style="width:20px;height:20px;display:flex;align-items:center;justify-content:center;background:#1C2336;border:1.5px solid #3B82F6;border-radius:4px;">
+  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+  </svg>
+</div>`;
+
 const SHELTER_ICON = L.divIcon({
-  html: '🏠',
-  className: 'text-sm leading-none',
+  html: shelterHtml,
+  className: '',
   iconSize: [20, 20],
   iconAnchor: [10, 10],
 });
 
 const OUTAGE_ICON = L.divIcon({
-  html: '<div style="width:10px;height:10px;border-radius:50%;background:#ef4444;border:2px solid #fff"></div>',
+  html: '<div style="width:10px;height:10px;border-radius:50%;background:#F43F5E;border:2px solid rgba(244,63,94,0.3);box-shadow:0 0 6px #F43F5E88"></div>',
   className: '',
   iconSize: [10, 10],
   iconAnchor: [5, 5],
@@ -67,9 +75,9 @@ export default function MapPanel() {
         const isSel = selected?.ctuid === t.ctuid;
         return {
           fillColor: color,
-          fillOpacity: isSel ? 0.85 : 0.55,
-          color: isSel ? color : '#222222',
-          weight: isSel ? 2 : 0.8,
+          fillOpacity: isSel ? 0.85 : 0.5,
+          color: isSel ? color : '#2D3A52',
+          weight: isSel ? 2.5 : 1,
         };
       },
       onEachFeature: (feat, lyr) => {
@@ -78,11 +86,11 @@ export default function MapPanel() {
         if (!t) return;
 
         lyr.on('mouseover', () => {
-          (lyr as L.Path).setStyle({ fillOpacity: 0.8 });
+          (lyr as L.Path).setStyle({ fillOpacity: 0.75 });
           const score = scoreFor(t, scenario);
           const tier = getTier(score);
           lyr.bindTooltip(
-            `<strong style="color:#F5F5F5">${t.neighbourhood}</strong><br/><span style="color:#9CA3AF">${score.toFixed(1)} · ${TIER_LABELS[tier]}</span>`,
+            `<strong style="color:#E6EAF0">${t.neighbourhood}</strong><br/><span style="color:#7A8FA8">${score.toFixed(1)} · ${TIER_LABELS[tier]}</span>`,
             { sticky: true }
           ).openTooltip();
         });
@@ -129,21 +137,23 @@ export default function MapPanel() {
       <div className="absolute bottom-10 left-3 z-[1000] flex flex-col gap-1">
         <button
           onClick={() => setShowShelters(v => !v)}
-          className={`px-2 py-1 rounded text-xs font-medium border transition-colors ${showShelters ? 'bg-card border-accent text-accent' : 'bg-card border-border text-muted'}`}>
-          🏠 Shelters
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium border transition-all duration-150 cursor-pointer
+            ${showShelters ? 'bg-card border-accent/50 text-accent' : 'bg-card/80 border-border text-muted hover:text-primary'}`}>
+          <Building2 size={11} />Shelters
         </button>
         <button
           onClick={() => setShowOutages(v => !v)}
-          className={`px-2 py-1 rounded text-xs font-medium border transition-colors ${showOutages ? 'bg-card border-critical text-critical' : 'bg-card border-border text-muted'}`}>
-          ⚡ Outages
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium border transition-all duration-150 cursor-pointer
+            ${showOutages ? 'bg-card border-critical/50 text-critical' : 'bg-card/80 border-border text-muted hover:text-primary'}`}>
+          <RadioTower size={11} />Outages
         </button>
       </div>
 
       {/* Legend */}
-      <div className="absolute bottom-3 left-3 z-[1000] bg-card border border-border rounded p-2 text-xs space-y-0.5">
+      <div className="absolute bottom-3 left-3 z-[1000] bg-card/90 backdrop-blur-sm border border-border rounded-lg p-2.5 text-xs space-y-1">
         {(['low', 'moderate', 'high', 'critical'] as const).map(tier => (
-          <div key={tier} className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-sm inline-block" style={{ background: TIER_COLORS[tier] }} />
+          <div key={tier} className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-sm inline-block shrink-0" style={{ background: TIER_COLORS[tier] }} />
             <span className="text-muted capitalize">{tier}</span>
           </div>
         ))}

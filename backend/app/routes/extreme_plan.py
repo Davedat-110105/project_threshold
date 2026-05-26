@@ -12,9 +12,10 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from ..deps import get_briefing_service, get_store
+from ..limiter import limiter
 from ..models.common import Envelope
 from ..models.extreme_plan import ExtremePlanRequest, ExtremePlanResponse
 from ..services.data_loader import DataStore
@@ -26,7 +27,9 @@ router = APIRouter(prefix="/api/extreme-plan", tags=["extreme-plan"])
 
 
 @router.post("", response_model=Envelope[ExtremePlanResponse])
+@limiter.limit("5/minute")
 async def post_extreme_plan(
+    request: Request,
     body: ExtremePlanRequest,
     store: Annotated[DataStore, Depends(get_store)],
     briefing_service: Annotated[BriefingService, Depends(get_briefing_service)],

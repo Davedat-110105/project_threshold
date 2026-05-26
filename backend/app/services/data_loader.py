@@ -30,7 +30,7 @@ PCA_FACTORS: tuple[str, ...] = (
     "cisr_score",
     "pct_renters",
     "pct_pre1980",
-    "humidex",
+    "pct_low_income",
     "median_income",
 )
 
@@ -42,7 +42,7 @@ FACTOR_DIRECTION: dict[str, str] = {
     "cisv_dim4": "vulnerable",
     "pct_renters": "vulnerable",
     "pct_pre1980": "vulnerable",
-    "humidex": "vulnerable",
+    "pct_low_income": "vulnerable",
     "cisr_score": "resilient",
     "median_income": "resilient",
 }
@@ -56,7 +56,7 @@ FACTOR_LABELS: dict[str, str] = {
     "cisr_score": "Social Resilience (CISR)",
     "pct_renters": "Renter Households (%)",
     "pct_pre1980": "Pre-1980 Dwellings (%)",
-    "humidex": "Humidex (°C)",
+    "pct_low_income": "Low-Income Households (%)",
     "median_income": "Median Household Income (CAD)",
 }
 

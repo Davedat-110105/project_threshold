@@ -1,8 +1,27 @@
 """Score lookup and factor traceability.
 
-The PCA scores themselves are pre-computed by ``app.pipeline`` and stored on
-each CT. This module looks them up, maps scores → risk tier, and assembles
-the per-CT factor breakdown the detail panel needs.
+Scoring formula (from pipeline to frontend)
+--------------------------------------------
+1. The pipeline (``python -m app.pipeline``) fits a separate
+   ``StandardScaler + PCA(n_components=5)`` for each scenario on the
+   curated feature table (``curated.community_features``).
+2. PC1 from each fit is rescaled to [0, 100] using the training-set min/max.
+   Higher score = more vulnerable.
+3. The publish stage writes these pre-computed scores as
+   ``threshold_score_<scenario>`` into ``public.communities``.
+4. At request time this module reads those pre-computed values directly.
+   No scoring happens in the request path.
+
+Scenario factor weights (applied before PCA fit in pipeline/config.py)
+-----------------------------------------------------------------------
+  baseline  -- equal weights across all 10 factors
+  heatwave  -- pct_renters ×1.8, pct_low_income ×2.0, pct_pre1980 ×1.3,
+               cisv_dim2 ×1.5
+  icestorm  -- pct_pre1980 ×2.0, pct_low_income ×1.8, cisr_score ×1.5,
+               pct_renters ×1.2
+
+Note: humidex, active_outages, and customers_affected are Tier C live signals.
+They are layered as UI overlays and never enter PCA training.
 """
 
 from __future__ import annotations
@@ -34,14 +53,33 @@ SCENARIO_LABELS: dict[Scenario, str] = {
 
 SCENARIO_DESCRIPTIONS: dict[Scenario, str] = {
     "baseline": "Equal-weight PCA composite across all 10 factors.",
-    "heatwave": "Re-weights humidex (×2.5) and renter share (×1.2) to surface heat-vulnerable CTs.",
-    "icestorm": "Re-weights active outages (×3.0), customers affected (×2.0), and renter share (×1.5).",
+    "heatwave": (
+        "Amplifies heat-stress factors: renter share (×1.8), low-income rate (×2.0), "
+        "pre-1980 buildings (×1.3), and material deprivation (CISV dim2 ×1.5)."
+    ),
+    "icestorm": (
+        "Amplifies cold-outage factors: pre-1980 buildings (×2.0), low-income rate (×1.8), "
+        "resilience score (CISR ×1.5), and renter share (×1.2)."
+    ),
 }
 
+# Documentation reference for what the pipeline trained with (see pipeline/config.py).
+# These values are NOT applied at request time -- scores are pre-computed.
+# Update this dict whenever pipeline/config.py SCENARIOS changes.
 SCENARIO_WEIGHTS: dict[Scenario, dict[str, float]] = {
     "baseline": {},
-    "heatwave": {"humidex": 2.5, "pct_renters": 1.2},
-    "icestorm": {"active_outages": 3.0, "customers_affected": 2.0, "pct_renters": 1.5},
+    "heatwave": {
+        "pct_renters": 1.8,
+        "pct_low_income": 2.0,
+        "pct_pre1980": 1.3,
+        "cisv_dim2": 1.5,
+    },
+    "icestorm": {
+        "pct_pre1980": 2.0,
+        "pct_low_income": 1.8,
+        "cisr_score": 1.5,
+        "pct_renters": 1.2,
+    },
 }
 
 
@@ -85,9 +123,19 @@ def to_summary(rec: CommunityRecord) -> CommunitySummary:
         pct_pre1980=_to_float(props.get("pct_pre1980")),
         pct_low_income=_to_float(props.get("pct_low_income")),
         cisv_score=_to_float(props.get("cisv_score")),
+        cisv_dim1=_to_float(props.get("cisv_dim1")),
+        cisv_dim2=_to_float(props.get("cisv_dim2")),
+        cisv_dim3=_to_float(props.get("cisv_dim3")),
+        cisv_dim4=_to_float(props.get("cisv_dim4")),
+        cisv_quintile=_to_int(props.get("cisv_quintile")),
         cisr_score=_to_float(props.get("cisr_score")),
+        cisr_quintile=_to_int(props.get("cisr_quintile")),
         humidex=_to_float(props.get("humidex")),
         temperature_c=_to_float(props.get("temperature_c")),
+        precipitation_mm=_to_float(props.get("precipitation_mm")),
+        wind_speed_kmh=_to_float(props.get("wind_speed_kmh")),
+        wind_gusts_kmh=_to_float(props.get("wind_gusts_kmh")),
+        weather_code=_to_int(props.get("weather_code")),
         active_outages=_to_int(props.get("active_outages")) or 0,
         customers_affected=_to_int(props.get("customers_affected")) or 0,
         threshold_score_baseline=_to_float(props.get("threshold_score_baseline")),

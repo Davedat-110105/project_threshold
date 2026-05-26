@@ -1,0 +1,13 @@
+# Full pipeline + orchestration deps — includes serving deps
+-r requirements.txt
+
+# Pipeline orchestration + tracking + validation + migrations
+prefect>=3.0
+mlflow>=2.18
+pandera>=0.20
+alembic>=1.13
+
+# Testing
+pytest>=8.2
+pytest-asyncio>=0.23
+anyio>=4.4

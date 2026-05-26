@@ -2,25 +2,66 @@
 @tailwind components;
 @tailwind utilities;
 
+/* RGB triplets (no commas) so Tailwind's opacity modifiers work: rgb(var(--c-x) / 0.15) */
+:root, [data-theme="dark"] {
+  --c-base:     13 17 23;
+  --c-panel:    22 28 42;
+  --c-card:     28 35 54;
+  --c-hover:    35 46 69;
+  --c-border:   45 58 82;
+  --c-primary:  230 234 240;
+  --c-muted:    122 143 168;
+  --c-accent:   59 130 246;
+  --c-orange:   245 158 11;
+  --c-low:      52 211 153;
+  --c-moderate: 251 191 36;
+  --c-high:     249 115 22;
+  --c-critical: 244 63 94;
+  --c-map-bg:   #0D0D0D;
+  --c-popup-bg: #1A1A1A;
+  --c-popup-bd: #2A2A2A;
+  --c-scroll:   #2A2A2A;
+}
+
+[data-theme="mono"] {
+  --c-base:     255 255 255;
+  --c-panel:    245 245 245;
+  --c-card:     235 235 235;
+  --c-hover:    224 224 224;
+  --c-border:   200 200 200;
+  --c-primary:  10 10 10;
+  --c-muted:    88 88 88;
+  --c-accent:   10 10 10;
+  --c-orange:   10 10 10;
+  --c-low:      64 64 64;
+  --c-moderate: 96 96 96;
+  --c-high:     26 26 26;
+  --c-critical: 0 0 0;
+  --c-map-bg:   #F0F0F0;
+  --c-popup-bg: #FFFFFF;
+  --c-popup-bd: #C8C8C8;
+  --c-scroll:   #C8C8C8;
+}
+
 * { box-sizing: border-box; }
 
 body {
-  background: #0D0D0D;
-  color: #F5F5F5;
+  background: var(--c-base);
+  color: var(--c-primary);
   margin: 0;
   font-family: 'Inter', system-ui, sans-serif;
   overflow: hidden;
 }
 
-.leaflet-container { background: #0D0D0D !important; }
+.leaflet-container { background: var(--c-map-bg) !important; }
 .leaflet-popup-content-wrapper {
-  background: #1A1A1A;
-  color: #F5F5F5;
-  border: 1px solid #2A2A2A;
+  background: var(--c-popup-bg);
+  color: var(--c-primary);
+  border: 1px solid var(--c-popup-bd);
   border-radius: 8px;
   box-shadow: none;
 }
-.leaflet-popup-tip { background: #1A1A1A; }
+.leaflet-popup-tip { background: var(--c-popup-bg); }
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #2A2A2A; border-radius: 2px; }
+::-webkit-scrollbar-thumb { background: var(--c-scroll); border-radius: 2px; }

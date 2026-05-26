@@ -15,9 +15,11 @@ from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import ORJSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from .config import Settings, get_settings
 from .db import Database
@@ -39,6 +41,7 @@ from .services.llm import BriefingService
 from .services.outages import OutageService
 from .services.persistence import PersistenceService
 from .services.weather import WeatherService
+from .limiter import limiter
 
 logging.basicConfig(
     level=logging.INFO,
@@ -59,7 +62,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.persistence = PersistenceService(app.state.db)
         app.state.store = await load_data_store(app.state.db)
         app.state.http_client = httpx.AsyncClient(
-            headers={"User-Agent": "Threshold/0.1 (+https://threshold.ca)"}
+            headers={"User-Agent": "Threshold/1.0 (+https://github.com/Davedat-110105/project_threshold)"}
         )
         app.state.outage_service = OutageService(settings, client=app.state.http_client)
         app.state.weather_service = WeatherService(
@@ -79,19 +82,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             yield
         finally:
+            await app.state.briefing_service.aclose()
             await app.state.http_client.aclose()
             await app.state.db.dispose()
 
     app = FastAPI(
-        title="Threshold",
-        version="0.1.0",
+        title="Threshold API",
+        version="1.0.0",
         description=(
-            "Civic data fusion API for community energy vulnerability. "
-            "Every numeric value is traceable to a public dataset."
+            "Community energy vulnerability platform for the Alectra service territory. "
+            "Fuses census, vulnerability indices, live weather, flood signals, and utility "
+            "outage data into traceable, scenario-aware scores for every Census Tract. "
+            "Every numeric value is traceable to a named public dataset."
         ),
         default_response_class=ORJSONResponse,
         lifespan=lifespan,
     )
+
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
     app.add_middleware(
         CORSMiddleware,

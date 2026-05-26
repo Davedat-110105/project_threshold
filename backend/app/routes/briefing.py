@@ -11,9 +11,10 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from ..deps import get_briefing_service, get_store
+from ..limiter import limiter
 from ..models.briefing import BriefingRequest, BriefingResponse
 from ..models.common import Envelope
 from ..services.data_loader import DataStore
@@ -24,7 +25,9 @@ router = APIRouter(prefix="/api/briefing", tags=["briefing"])
 
 
 @router.post("", response_model=Envelope[BriefingResponse])
+@limiter.limit("10/minute")
 async def post_briefing(
+    request: Request,
     body: BriefingRequest,
     service: Annotated[BriefingService, Depends(get_briefing_service)],
     store: Annotated[DataStore, Depends(get_store)],

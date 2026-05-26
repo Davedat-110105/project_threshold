@@ -92,7 +92,9 @@ FACTOR_TO_SOURCE: dict[str, str] = {
     "cisv_dim2": "statcan-cisv-2021",
     "cisv_dim3": "statcan-cisv-2021",
     "cisv_dim4": "statcan-cisv-2021",
+    "cisv_quintile": "statcan-cisv-2021",
     "cisr_score": "statcan-cisr-2021",
+    "cisr_quintile": "statcan-cisr-2021",
     "cisr_dim1": "statcan-cisr-2021",
     "cisr_dim2": "statcan-cisr-2021",
     "cisr_dim3": "statcan-cisr-2021",
@@ -109,6 +111,10 @@ FACTOR_TO_SOURCE: dict[str, str] = {
     "weather_code": "open-meteo-current",
     "active_outages": "alectra-outages-live",
     "customers_affected": "alectra-outages-live",
+    "threshold_score": "threshold-score-pca",
+    "threshold_score_baseline": "threshold-score-pca",
+    "threshold_score_heatwave": "threshold-score-pca",
+    "threshold_score_icestorm": "threshold-score-pca",
 }
 
 

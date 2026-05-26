@@ -1,0 +1,8 @@
+FROM project_threshold-backend
+
+# Add pipeline-only deps on top of the serving image.
+# Built once; run with `docker compose run --rm pipeline`.
+COPY backend/requirements-pipeline.txt requirements-pipeline.txt
+RUN pip install -r requirements-pipeline.txt
+
+CMD ["python", "-m", "app.pipeline", "-v"]

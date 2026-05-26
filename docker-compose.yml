@@ -41,6 +41,27 @@ services:
     # THRESHOLD_DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/threshold,
     # or `docker compose exec backend python -m app.pipeline` (uses an ephemeral cache).
 
+  # One-shot pipeline runner. Populates the Postgres DB from source data files.
+  # Run manually: docker compose run --rm pipeline
+  # Must be run at least once before the backend serves real data.
+  pipeline:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.pipeline
+    container_name: threshold-pipeline
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      THRESHOLD_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-threshold}
+      THRESHOLD_DATA_DIR: /pipeline/data
+      THRESHOLD_MLFLOW_TRACKING_URI: http://mlflow:5000
+      THRESHOLD_PREFECT_API_URL: http://prefect:4200/api
+      MLFLOW_TRACKING_INSECURE_TLS: "true"
+    volumes:
+      - ./pipeline/data:/pipeline/data:ro
+
   # Orchestration UI + API. The pipeline registers @flow runs here so the team
   # can see DAG, retries, and per-task logs at http://localhost:4200.
   prefect:
@@ -58,7 +79,8 @@ services:
       - threshold_prefect:/data
 
   # MLflow tracking server. Models + metrics from `stages/train.py` land here;
-  # the UI at http://localhost:5000 shows experiment history.
+  # the UI at http://localhost:5001 shows experiment history.
+  # Port 5001 is used because macOS AirPlay occupies 5000.
   mlflow:
     image: ghcr.io/mlflow/mlflow:latest
     container_name: threshold-mlflow
@@ -70,7 +92,7 @@ services:
       --backend-store-uri sqlite:////mlflow/mlflow.db
       --default-artifact-root /mlflow/artifacts
     ports:
-      - "${MLFLOW_PORT:-5000}:5000"
+      - "${MLFLOW_PORT:-5001}:5000"
     volumes:
       - threshold_mlflow:/mlflow
 

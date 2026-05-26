@@ -1,0 +1,32 @@
+app = "threshold-api"
+primary_region = "yyz"
+
+[build]
+  dockerfile = "backend/Dockerfile"
+  dockerfile_context = "backend"
+
+[env]
+  BACKEND_PORT = "8000"
+  THRESHOLD_GEMINI_TIMEOUT_SECONDS = "20"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 25
+    soft_limit = 20
+
+[[vm]]
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1
+
+# Secrets to set via `fly secrets set`:
+#   THRESHOLD_DATABASE_URL=postgresql+asyncpg://...
+#   GEMINI_API_KEY=...
+#   THRESHOLD_CORS_ORIGINS=https://threshold-app.vercel.app

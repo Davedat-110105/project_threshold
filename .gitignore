@@ -24,3 +24,8 @@ pipeline/data/
 # Frontend build artifacts
 frontend/node_modules/
 frontend/dist/
+
+# Secrets — never commit
+.env
+.env.local
+.env.*.local

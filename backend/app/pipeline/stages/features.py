@@ -69,6 +69,39 @@ async def run(db: Any) -> StageResult:
         "features: %d rows before Alectra clip, %d after", before, len(df)
     )
 
+    # ---- Data quality assertion ------------------------------------------
+    # We expect at least 100 Brampton CTs after the Alectra clip. Fewer means
+    # a join failure or boundary-clip issue upstream -- fail loudly rather than
+    # silently train on a truncated dataset.
+    MIN_CT_COUNT = 100
+    if len(df) < MIN_CT_COUNT:
+        raise RuntimeError(
+            f"features: only {len(df)} CTs passed the Alectra clip; "
+            f"expected >= {MIN_CT_COUNT}. Check staging.ct_geometries and "
+            f"the Alectra service-area polygon in staging.alectra_service_area."
+        )
+
+    # ---- Null imputation for numeric factor columns -------------------------
+    # Fill missing continuous values with the column median so they don't
+    # propagate as NaN into PCA. Count columns default to 0.
+    _NUMERIC_FACTORS = [
+        "median_income", "pct_renters", "pct_pre1980", "pct_low_income",
+        "cisv_score", "cisv_dim1", "cisv_dim2", "cisv_dim3", "cisv_dim4",
+        "cisr_score",
+    ]
+    _COUNT_FACTORS = ["population"]
+    for col in _NUMERIC_FACTORS:
+        if col in df.columns and df[col].isnull().any():
+            med = df[col].median()
+            n_filled = df[col].isnull().sum()
+            df[col] = df[col].fillna(med)
+            logger.info("features: filled %d nulls in %s with median %.4f", n_filled, col, med)
+    for col in _COUNT_FACTORS:
+        if col in df.columns and df[col].isnull().any():
+            n_filled = df[col].isnull().sum()
+            df[col] = df[col].fillna(0)
+            logger.info("features: filled %d nulls in %s with 0", n_filled, col)
+
     # Pandera contract -- fails the stage if anything is malformed.
     df = schemas.CommunityFeatures.validate(df, lazy=True)
 

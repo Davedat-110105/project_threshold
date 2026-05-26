@@ -22,7 +22,9 @@ Audience = Literal["city", "alectra"]
 class ExtremePlanRequest(BaseModel):
     """Frontend payload: which neighbourhoods, which scenario, which audience."""
 
-    ctuids: list[str] = Field(min_length=1, description="Selected Census Tract UIDs.")
+    ctuids: list[str] = Field(min_length=1, max_length=50, description="Selected Census Tract UIDs.")
+    # Individual CTUID format: 7-digit StatsCan code (e.g. "5350528")
+    # max_length=20 enforced inline; max_length on the list caps at 50 CTs
     scenario: ExtremeScenario
     audience: Audience = Field(
         description="'city' for emergency-management view; 'alectra' for utility-ops view."

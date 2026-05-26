@@ -8,7 +8,7 @@ from .community import Scenario
 
 
 class BriefingRequest(BaseModel):
-    ctuid: str = Field(min_length=1)
+    ctuid: str = Field(min_length=1, max_length=20)
     scenario: Scenario = "baseline"
 
 

@@ -1,12 +1,16 @@
 # Progress Tracker
 
-Last updated: 2026-05-25. Hackathon deadline: **2026-05-26 23:59 ET.**
+Last updated: 2026-05-25 (session 2). Hackathon deadline: **2026-05-26 23:59 ET.**
 
 ---
 
 ## Current Phase
 
 **Data pipeline industrialized into a medallion-layered Python package. `raw → staging → curated → ml → public` schemas in Postgres, owned by Alembic migrations. Six chained stages (ingest / clean / features / train / score / publish) under [backend/app/pipeline/stages/](../backend/app/pipeline/stages/), each idempotently re-runnable. PCA training writes versioned sklearn `Pipeline` artifacts to `ml.models` and logs to MLflow. Per-CT scores in `ml.community_scores` carry `model_id` provenance. Prefect flow ([flow.py](../backend/app/pipeline/flow.py)) wraps each stage as a `@task` with retries; Prefect UI on `:4200`, MLflow UI on `:5000`. Pandera schemas validate at stage boundaries. Backend still reads `public.communities / facilities / pca_loadings` — no API changes. Full design in [pipeline.md](./pipeline.md).**
+
+**UI redesign (session 2): Replaced all emoji icons with Lucide React SVG icons. Upgraded colour palette to navy dark (`#0D1117` base, `#161C2A` panel, `#1C2336` card) with Inter + Fira Code typography. Added `lucide-react` to frontend deps. All five components updated (TopBar, LeftPanel, MapPanel, RightPanel, TriageView).**
+
+**Security hardening (session 2): Added `slowapi` rate limiting (10/min briefing, 5/min extreme-plan). Added `max_length` validation on LLM input fields. Added `r.ok` HTTP error checks in dataLoader.ts. Added `.env` to `.gitignore`.**
 
 ---
 
@@ -113,11 +117,11 @@ All UI files live under `frontend/src/`. The Docker Compose file now includes a 
 - ✅ **`context.tsx`** — `AppProvider` wraps the app with shared React context. Holds `tracts`, `facilities`, `selected` (active CT), `scenario` (Baseline/Heatwave/Ice Storm), and `view` (Map/Triage) state. All child components read from here.
 
 **Components:**
-- ✅ **`components/TopBar.tsx`** — Logo, view switcher (Map ↔ Triage toggle), and scenario switcher (Baseline / Heatwave / Ice Storm). Dispatches context updates on interaction.
-- ✅ **`components/LeftPanel.tsx`** — Ranked Census Tract list sorted by current scenario score, highest-vulnerability first. Includes outage pulse dots as live indicators. Clicking a row sets `selected`.
-- ✅ **`components/MapPanel.tsx`** — Leaflet choropleth rendered via react-leaflet with a Carto dark basemap. Renders CT polygons colour-coded by tier, shelter marker overlays, and outage overlays. Includes a tier legend. Click selects a CT and populates RightPanel.
-- ✅ **`components/RightPanel.tsx`** — Detail panel for the selected CT. Shows score header, live weather conditions, vulnerability breakdown, CISV dimension bars, income section, nearby shelter list, and an LLM briefing button that calls the backend `/api/briefing` endpoint.
-- ✅ **`components/TriageView.tsx`** — Table view (alternative to map) showing per-CT stats: Critical count, average score, no-shelter count, and active outages. Columns are sortable.
+- ✅ **`components/TopBar.tsx`** — Logo (Zap SVG), view switcher (Map ↔ Triage toggle with icons), and scenario switcher. Uses Lucide icons throughout.
+- ✅ **`components/LeftPanel.tsx`** — Ranked Census Tract list sorted by current scenario score, highest-vulnerability first. Building2 + ChevronDown icons. Active row highlighted with blue left border.
+- ✅ **`components/MapPanel.tsx`** — Leaflet choropleth with Carto dark basemap. SVG shelter markers (blue bordered house icon), glowing red outage dots. Toggle buttons use Lucide icons.
+- ✅ **`components/RightPanel.tsx`** — Detail panel for the selected CT. Score header, live weather (Thermometer/Wind/CloudRain icons), vulnerability bars, CISV dimensions, income section, shelter list (Building2 icons), community reports, action buttons (ClipboardList/FileText/ExternalLink icons).
+- ✅ **`components/TriageView.tsx`** — Table view showing per-CT stats. Stat cards with AlertTriangle/TrendingUp/Building2/RadioTower icons. Sortable columns with ChevronUp/Down indicators.
 
 ---
 
@@ -127,6 +131,8 @@ All UI files live under `frontend/src/`. The Docker Compose file now includes a 
 - [ ] Deployment (Vercel + Fly.io / Railway)
 - [ ] Wire flood signal into the PCA composite (currently served as a standalone overlay; not yet a scored factor)
 - [ ] Demographic-aware Gemini personalization (uses `curated.community_features` directly instead of the rebuilt `public.communities` row to keep prompts compact)
+- [ ] Per-CT detail fetch in context.tsx (fetches `GET /api/communities/{ctuid}?scenario=` on selection to populate cisv_dim1-4, quintile, wind, weather_code fields)
+- [ ] Wire "Generate outreach plan" action button to `POST /api/briefing` in RightPanel
 
 ---
 
@@ -163,6 +169,10 @@ All UI files live under `frontend/src/`. The Docker Compose file now includes a 
 - [ ] Public URL live (deploy frontend + backend)
 - [x] React frontend with choropleth (react-leaflet 4 + Leaflet 1.9, Carto dark basemap — not Mapbox; Mapbox is a future upgrade) ✅
 - [x] All 3 scenarios working in UI (Baseline / Heatwave / Ice Storm) ✅
+- [x] UI redesign — navy dark palette, Lucide SVG icons, Inter + Fira Code fonts ✅
+- [x] API errors handled with r.ok checks in dataLoader ✅
+- [x] Rate limiting on LLM routes (slowapi) ✅
+- [x] .env added to .gitignore ✅
 - [ ] Demo video / slides updated
 - [x] FastAPI backend running (routes: communities, weather, outages, flood, facilities, briefing, recommendations, extreme-plan, scenarios, health) ✅
 - [x] Pipeline module persists ontology to Postgres ✅
