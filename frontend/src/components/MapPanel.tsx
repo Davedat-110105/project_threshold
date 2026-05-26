@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
-import { Building2, RadioTower } from 'lucide-react';
+import { Building2, HeartPulse, Hospital, RadioTower } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { useApp } from '../context';
 import { getTier, TIER_COLORS, TIER_LABELS, scoreFor } from '../utils';
@@ -25,14 +25,52 @@ const OUTAGE_ICON = L.divIcon({
   iconAnchor: [5, 5],
 });
 
+const ltcHtml = `<div style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;background:#1C2336;border:1.5px solid #EC4899;border-radius:50%;box-shadow:0 0 8px rgba(236,72,153,0.45);">
+  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#EC4899" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/>
+    <path d="M3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27"/>
+  </svg>
+</div>`;
+
+const LTC_ICON = L.divIcon({
+  html: ltcHtml,
+  className: '',
+  iconSize: [22, 22],
+  iconAnchor: [11, 11],
+});
+
+function hospitalHtml(color: string): string {
+  return `<div style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;background:#1C2336;border:2px solid ${color};border-radius:6px;box-shadow:0 0 8px ${color}66;">
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 5v14"/><path d="M5 12h14"/>
+    </svg>
+  </div>`;
+}
+
+const HOSPITAL_ER_ICON = L.divIcon({
+  html: hospitalHtml('#EF4444'),
+  className: '',
+  iconSize: [24, 24],
+  iconAnchor: [12, 12],
+});
+
+const HOSPITAL_URGENT_ICON = L.divIcon({
+  html: hospitalHtml('#F59E0B'),
+  className: '',
+  iconSize: [24, 24],
+  iconAnchor: [12, 12],
+});
+
 export default function MapPanel() {
-  const { tracts, facilities, selected, setSelected, scenario } = useApp();
+  const { tracts, facilities, ltcHomes, hospitals, selected, setSelected, scenario } = useApp();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const geoRef = useRef<L.GeoJSON | null>(null);
   const markersRef = useRef<L.LayerGroup | null>(null);
   const [showShelters, setShowShelters] = useState(true);
   const [showOutages, setShowOutages] = useState(true);
+  const [showLtc, setShowLtc] = useState(true);
+  const [showHospitals, setShowHospitals] = useState(true);
 
   // Init map once
   useEffect(() => {
@@ -127,7 +165,26 @@ export default function MapPanel() {
           .addTo(markersRef.current!);
       });
     }
-  }, [tracts, facilities, showShelters, showOutages]);
+
+    if (showLtc) {
+      ltcHomes.forEach(home => {
+        L.marker([home.lat, home.lng], { icon: LTC_ICON })
+          .bindTooltip(`<strong style="color:#E6EAF0">${home.name}</strong><br/><span style="color:#EC4899">${home.beds} beds</span><br/><span style="color:#7A8FA8">${home.address}</span>`)
+          .addTo(markersRef.current!);
+      });
+    }
+
+    if (showHospitals) {
+      hospitals.forEach(h => {
+        const icon = h.emergency_24_7 ? HOSPITAL_ER_ICON : HOSPITAL_URGENT_ICON;
+        const tag = h.emergency_24_7 ? '24/7 ER' : 'Urgent Care';
+        const color = h.emergency_24_7 ? '#EF4444' : '#F59E0B';
+        L.marker([h.lat, h.lng], { icon })
+          .bindTooltip(`<strong style="color:#E6EAF0">${h.name}</strong><br/><span style="color:${color}">${tag}</span><br/><span style="color:#7A8FA8">${h.address}</span>`)
+          .addTo(markersRef.current!);
+      });
+    }
+  }, [tracts, facilities, ltcHomes, hospitals, showShelters, showOutages, showLtc, showHospitals]);
 
   return (
     <div className="flex-1 relative overflow-hidden">
@@ -146,6 +203,18 @@ export default function MapPanel() {
           className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium border transition-all duration-150 cursor-pointer
             ${showOutages ? 'bg-card border-critical/50 text-critical' : 'bg-card/80 border-border text-muted hover:text-primary'}`}>
           <RadioTower size={11} />Outages
+        </button>
+        <button
+          onClick={() => setShowLtc(v => !v)}
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium border transition-all duration-150 cursor-pointer
+            ${showLtc ? 'bg-card text-[#EC4899] border-[#EC4899]/50' : 'bg-card/80 border-border text-muted hover:text-primary'}`}>
+          <HeartPulse size={11} />LTC Homes
+        </button>
+        <button
+          onClick={() => setShowHospitals(v => !v)}
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium border transition-all duration-150 cursor-pointer
+            ${showHospitals ? 'bg-card text-[#EF4444] border-[#EF4444]/50' : 'bg-card/80 border-border text-muted hover:text-primary'}`}>
+          <Hospital size={11} />Hospitals
         </button>
       </div>
 

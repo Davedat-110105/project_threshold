@@ -19,7 +19,12 @@ pipeline/data/cisr/
 pipeline/data/cisv/
 pipeline/data/geo_attr/
 pipeline/data/*.zip
-pipeline/data/
+pipeline/data/*
+# Manually-curated datasets + reproducibility scripts — track these
+!pipeline/data/ltc_homes
+!pipeline/data/hospitals
+!pipeline/data/census_extra
+!pipeline/data/air_quality
 
 # Frontend build artifacts
 frontend/node_modules/

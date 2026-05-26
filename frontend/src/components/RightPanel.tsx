@@ -3,6 +3,7 @@ import {
   Map, Thermometer, Wind, CloudRain, AlertTriangle, Building2,
   TrendingDown, MessageSquare, Send,
   Loader2, Sparkles, CheckCircle2, DollarSign, ChevronUp, ChevronDown,
+  HeartPulse, Users, Baby, Languages, Bus, Hospital, CloudFog,
 } from 'lucide-react';
 import { useApp } from '../context';
 import { getTier, TIER_COLORS, TIER_LABELS, scoreFor, formatIncome, formatPct, weatherLabel } from '../utils';
@@ -37,6 +38,18 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       {open && <div className="px-4 pb-3">{children}</div>}
     </div>
   );
+}
+
+function aqhiColor(score: number): string {
+  if (score <= 3) return '#22C55E';   // Low
+  if (score <= 6) return '#F59E0B';   // Moderate
+  if (score <= 10) return '#EF4444';  // High
+  return '#7F1D1D';                    // Very High
+}
+
+function aqhiDisplay(score: number): string {
+  if (score >= 10.5) return '10+';
+  return String(Math.round(score));
 }
 
 function Bar({ label, value, max = 1, color = '#3B82F6' }: { label: string; value: number; max?: number; color?: string }) {
@@ -165,6 +178,58 @@ export default function RightPanel() {
         )}
       </Section>
 
+      {/* Air Quality */}
+      <Section title="Air Quality (AQHI)">
+        {selected.aqhi == null || selected.aqhi === 0 ? (
+          <div className="text-xs text-muted">Air quality data not available.</div>
+        ) : (
+          <>
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <div className="flex-1">
+                <div className="text-xs text-muted flex items-center gap-1 mb-1">
+                  <CloudFog size={11} />Health Risk
+                </div>
+                <div className="text-sm font-semibold leading-tight" style={{ color: aqhiColor(selected.aqhi) }}>
+                  {selected.aqhi_band} Risk
+                </div>
+                <div className="text-xs text-muted mt-0.5">Environment Canada scale</div>
+              </div>
+              <div className="text-right">
+                <div className="text-2xl font-bold font-mono tabular-nums leading-none" style={{ color: aqhiColor(selected.aqhi) }}>
+                  {aqhiDisplay(selected.aqhi)}
+                </div>
+                <div className="text-xs text-muted mt-1">/ 10+</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-card rounded-lg p-2 border border-border/50">
+                <div className="text-xs text-muted">PM2.5</div>
+                <div className="text-xs font-mono text-primary tabular-nums">{selected.pm25?.toFixed(1)} µg/m³</div>
+              </div>
+              <div className="bg-card rounded-lg p-2 border border-border/50">
+                <div className="text-xs text-muted">PM10</div>
+                <div className="text-xs font-mono text-primary tabular-nums">{selected.pm10?.toFixed(1)} µg/m³</div>
+              </div>
+            </div>
+
+            {selected.aqhi >= 4 && selected.pct_seniors_65plus >= 0.15 && (
+              <div className="mt-2 text-xs px-2.5 py-1.5 rounded-lg border flex items-start gap-1.5"
+                style={{ background: `${aqhiColor(selected.aqhi)}1A`, color: aqhiColor(selected.aqhi), borderColor: `${aqhiColor(selected.aqhi)}33` }}>
+                <AlertTriangle size={11} className="mt-0.5 shrink-0" />
+                <span>AQHI {aqhiDisplay(selected.aqhi)} + {formatPct(selected.pct_seniors_65plus)} seniors — recommend stay-indoors advisory.</span>
+              </div>
+            )}
+            {selected.aqhi >= 7 && (
+              <div className="mt-1 text-xs px-2.5 py-1.5 rounded-lg bg-critical/10 text-critical border border-critical/20 flex items-start gap-1.5">
+                <AlertTriangle size={11} className="mt-0.5 shrink-0" />
+                <span>High-risk air — close windows, limit outdoor exposure for all residents.</span>
+              </div>
+            )}
+          </>
+        )}
+      </Section>
+
       {/* Vulnerability breakdown */}
       <Section title="Vulnerability Breakdown">
         <Bar label="Social Vulnerability (CISV)" value={Math.max(selected.cisv_score, 0)} max={1.2} color={color} />
@@ -172,6 +237,45 @@ export default function RightPanel() {
         <Bar label="Pre-1980 Housing" value={selected.pct_pre1980} color="#F59E0B" />
         <Bar label="Low Income Share" value={selected.pct_low_income} color="#F43F5E" />
         <Bar label="Resilience (CISR) ↑ better" value={Math.max(selected.cisr_score, 0)} max={2} color="#34D399" />
+      </Section>
+
+      {/* Population Profile */}
+      <Section title="Population Profile">
+        <div className="text-xs text-muted mb-2">Who actually lives here — drives heatwave & emergency-response risk.</div>
+        <div className="grid grid-cols-2 gap-2 mb-2">
+          <div className="bg-card rounded-lg p-2.5 border border-border/50">
+            <div className="text-xs text-muted flex items-center gap-1 mb-1"><Users size={11} />Seniors 65+</div>
+            <div className="text-sm font-mono text-primary tabular-nums">{formatPct(selected.pct_seniors_65plus)}</div>
+          </div>
+          <div className="bg-card rounded-lg p-2.5 border border-border/50">
+            <div className="text-xs text-muted flex items-center gap-1 mb-1"><Baby size={11} />Children &lt; 5</div>
+            <div className="text-sm font-mono text-primary tabular-nums">{formatPct(selected.pct_children_under5)}</div>
+          </div>
+          <div className="bg-card rounded-lg p-2.5 border border-border/50">
+            <div className="text-xs text-muted flex items-center gap-1 mb-1"><Users size={11} />Live Alone</div>
+            <div className="text-sm font-mono text-primary tabular-nums">{formatPct(selected.pct_living_alone)}</div>
+          </div>
+          <div className="bg-card rounded-lg p-2.5 border border-border/50">
+            <div className="text-xs text-muted flex items-center gap-1 mb-1"><Languages size={11} />No EN/FR</div>
+            <div className="text-sm font-mono text-primary tabular-nums">{formatPct(selected.pct_no_official_lang)}</div>
+          </div>
+          <div className="bg-card rounded-lg p-2.5 border border-border/50 col-span-2">
+            <div className="text-xs text-muted flex items-center gap-1 mb-1"><Bus size={11} />Commute by Transit</div>
+            <div className="text-sm font-mono text-primary tabular-nums">{formatPct(selected.pct_transit_commute)}</div>
+          </div>
+        </div>
+        {selected.pct_seniors_65plus >= 0.20 && (
+          <div className="mt-1 text-xs px-2.5 py-1.5 rounded-lg bg-critical/10 text-critical border border-critical/20 flex items-start gap-1.5">
+            <AlertTriangle size={11} className="mt-0.5 shrink-0" />
+            <span>Senior-heavy neighbourhood — heatwave & cold-emergency priority.</span>
+          </div>
+        )}
+        {selected.pct_no_official_lang >= 0.05 && (
+          <div className="mt-1 text-xs px-2.5 py-1.5 rounded-lg bg-orange/10 text-orange border border-orange/20 flex items-start gap-1.5">
+            <Languages size={11} className="mt-0.5 shrink-0" />
+            <span>English-only emergency alerts will miss part of this community.</span>
+          </div>
+        )}
       </Section>
 
       {/* CISV dimensions */}
@@ -248,6 +352,81 @@ export default function RightPanel() {
             ))}
             {selected.shelterList.length > 3 && (
               <div className="text-xs text-muted mt-1">+{selected.shelterList.length - 3} more</div>
+            )}
+          </>
+        )}
+      </Section>
+
+      {/* Long-Term Care Homes */}
+      <Section title="Long-Term Care Homes">
+        {selected.ltcCount === 0 ? (
+          <div className="text-xs text-muted">No long-term care homes located inside this census tract.</div>
+        ) : (
+          <>
+            <div className="text-xs mb-2 flex items-center gap-1.5 flex-wrap">
+              <HeartPulse size={11} className="text-[#EC4899]" />
+              <span className="text-primary font-semibold">{selected.ltcCount} home{selected.ltcCount > 1 ? 's' : ''}</span>
+              <span className="text-muted">·</span>
+              <span className="text-primary font-mono tabular-nums">{selected.ltcBeds}</span>
+              <span className="text-muted">licensed beds</span>
+            </div>
+            {selected.ltcList.map(home => (
+              <div key={home.name} className="py-1.5 border-b border-border/40 last:border-0">
+                <div className="text-xs text-primary flex items-center gap-2">
+                  <HeartPulse size={10} className="text-[#EC4899] shrink-0" />
+                  <span className="flex-1 leading-tight">{home.name}</span>
+                  <span className="text-muted font-mono tabular-nums shrink-0">{home.beds} beds</span>
+                </div>
+                <div className="text-xs text-muted/70 ml-4 mt-0.5">{home.address}</div>
+              </div>
+            ))}
+            <div className="mt-2 text-xs px-2.5 py-1.5 rounded-lg bg-[#EC4899]/10 text-[#EC4899] border border-[#EC4899]/20 flex items-start gap-1.5">
+              <AlertTriangle size={11} className="mt-0.5 shrink-0" />
+              <span>Concentrated frail-senior population — top priority for emergency dispatch.</span>
+            </div>
+          </>
+        )}
+      </Section>
+
+      {/* Healthcare Access */}
+      <Section title="Healthcare Access">
+        {selected.nearestErKm == null ? (
+          <div className="text-xs text-muted">No hospital data available.</div>
+        ) : (
+          <>
+            <div className="bg-card rounded-lg p-2.5 border border-border/50 mb-2">
+              <div className="text-xs text-muted flex items-center gap-1 mb-1">
+                <Hospital size={11} className="text-[#EF4444]" />Nearest 24/7 ER
+              </div>
+              <div className="text-sm text-primary leading-tight">{selected.nearestErName}</div>
+              <div className="text-xs font-mono text-muted mt-1 tabular-nums">{selected.nearestErKm.toFixed(1)} km away</div>
+            </div>
+
+            {selected.hospitalsNearby.length > 1 && (
+              <>
+                <div className="text-xs text-muted mb-1.5">All hospitals within 8 km:</div>
+                {selected.hospitalsNearby.map(h => {
+                  const color = h.emergency_24_7 ? '#EF4444' : '#F59E0B';
+                  const tag = h.emergency_24_7 ? 'ER' : 'Urgent Care';
+                  return (
+                    <div key={h.name} className="py-1.5 border-b border-border/40 last:border-0">
+                      <div className="text-xs text-primary flex items-center gap-2">
+                        <Hospital size={10} style={{ color }} className="shrink-0" />
+                        <span className="flex-1 leading-tight">{h.name}</span>
+                        <span className="text-muted font-mono tabular-nums shrink-0">{h.distanceKm.toFixed(1)} km</span>
+                      </div>
+                      <div className="text-xs ml-4 mt-0.5" style={{ color }}>{tag}</div>
+                    </div>
+                  );
+                })}
+              </>
+            )}
+
+            {selected.nearestErKm >= 5 && (
+              <div className="mt-2 text-xs px-2.5 py-1.5 rounded-lg bg-critical/10 text-critical border border-critical/20 flex items-start gap-1.5">
+                <AlertTriangle size={11} className="mt-0.5 shrink-0" />
+                <span>Nearest ER is {selected.nearestErKm.toFixed(1)} km away — extended ambulance time during emergencies.</span>
+              </div>
             )}
           </>
         )}
